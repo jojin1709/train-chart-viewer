@@ -132,7 +132,7 @@ export function SearchForm() {
       </Button>
 
       <p className="mt-3 text-center text-xs text-muted-2">
-        Search any train to view reservation chart details.
+        Search any train number or name to view reservation chart.
       </p>
     </form>
   );

@@ -1,16 +1,14 @@
 import type { RailwayDataProvider } from "./types";
 import { FixtureRailwayProvider } from "./fixtureProvider";
+import { RailKitProvider } from "./railkitProvider";
 
 /**
  * Provider factory.
  *
  * RAILCHART_DATA_MODE controls which provider backs the application:
  *   - "fixture" (default): serves clearly-labeled demo data only.
+ *   - "railkit": uses the RailKit API for real train data.
  *   - "live": reserved for a future, authorized upstream integration.
- *     No such integration exists yet. Setting this value without also
- *     providing a real implementation will make the app correctly report
- *     "data unavailable" rather than silently falling back to fixtures —
- *     see LiveProviderNotConfigured below.
  *
  * The rest of the application (API routes, server components) must only
  * ever import getProvider() from this file — never a concrete provider
@@ -24,6 +22,11 @@ export function getProvider(): RailwayDataProvider {
   if (cached) return cached;
 
   const mode = process.env.RAILCHART_DATA_MODE ?? "fixture";
+
+  if (mode === "railkit") {
+    cached = new RailKitProvider();
+    return cached;
+  }
 
   if (mode === "live") {
     // Intentionally not implemented: no authorized live reservation-chart
