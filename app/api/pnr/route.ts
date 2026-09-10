@@ -1,34 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { configure, checkPNRStatus } from "railkit";
+import { getPNRStatus } from "@/lib/railradar";
 
 export const runtime = "nodejs";
 
-function initRailKit() {
-  const key = process.env.RAILKIT_API_KEY;
-  if (!key) throw new Error("RAILKIT_API_KEY not set");
-  configure(key);
-}
-
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const pnr = searchParams.get("pnr");
+  const pnr = searchParams.get("pnr") || "";
 
   if (!pnr || !/^\d{10}$/.test(pnr)) {
-    return NextResponse.json({ success: false, error: "PNR must be 10 digits" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid PNR number" }, { status: 400 });
   }
 
   try {
-    initRailKit();
-    const result = await checkPNRStatus(pnr);
-
-    // SDK returns { success: boolean, data: {...}, error?: string }
-    // Pass through directly
-    return NextResponse.json(result);
+    const data = await getPNRStatus(pnr);
+    if (!data) {
+      return NextResponse.json({ error: "PNR not found" }, { status: 404 });
+    }
+    return NextResponse.json({ success: true, data });
   } catch (error) {
     console.error("PNR check error:", error);
-    return NextResponse.json(
-      { success: false, error: String(error) },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch PNR status" }, { status: 500 });
   }
 }

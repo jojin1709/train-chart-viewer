@@ -4,34 +4,43 @@ import * as React from "react";
 import { Search, Loader2, MapPin, AlertCircle, Train } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface StationTrain {
-  [key: string]: unknown;
-  train_number?: string;
-  train_no?: string;
-  number?: string;
-  no?: string;
-  train_name?: string;
-  name?: string;
-  title?: string;
-  arrival?: string | { time?: string; scheduled?: string; actual?: string };
-  scheduled_arrival?: string | { time?: string; scheduled?: string };
-  departure?: string | { time?: string; scheduled?: string; actual?: string };
-  scheduled_departure?: string | { time?: string; scheduled?: string };
-  delay?: number;
-  late?: number;
-  platform?: number | string;
-  plat?: number | string;
-  status?: string;
+interface StationLiveTrain {
+  train: {
+    number: string;
+    name: string;
+    type: string;
+    source: string;
+    destination: string;
+    runDays: string[];
+  };
+  stop: {
+    sequence: number;
+    arrival: string | null;
+    departure: string | null;
+    day: number;
+    distance: number;
+  };
+  live: {
+    type: string;
+    expectedDepartureTime: string | null;
+    platform: string | null;
+    delayMinutes: number;
+  };
+}
+
+interface StationLiveData {
+  station: { code: string; name: string };
+  window: { from: string; to: string; hoursBack: number; hoursAhead: number };
+  count: number;
+  trains: StationLiveTrain[];
 }
 
 export default function StationLivePage() {
   const [stationCode, setStationCode] = React.useState("");
-  const [hours, setHours] = React.useState("2");
+  const [hours, setHours] = React.useState("4");
   const [loading, setLoading] = React.useState(false);
-  const [trains, setTrains] = React.useState<StationTrain[]>([]);
-  const [stationName, setStationName] = React.useState("");
+  const [data, setData] = React.useState<StationLiveData | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const [fetched, setFetched] = React.useState(false);
 
   async function handleSearch() {
     if (!stationCode) {
@@ -41,89 +50,24 @@ export default function StationLivePage() {
 
     setLoading(true);
     setError(null);
-    setTrains([]);
-    setStationName("");
+    setData(null);
 
     try {
-      const res = await fetch(`/api/station-live?station=${stationCode.toUpperCase()}&hrs=${hours}`);
-      const result = await res.json();
+      const res = await fetch(`/api/station-live?station=${stationCode.toUpperCase()}&hours=${hours}`);
+      const json = await res.json();
 
-      if (result.success !== false && result.data) {
-        const data = result.data;
-        setStationName(data.station_name || data.station || stationCode.toUpperCase());
-
-        // Handle different response formats
-        let trainList: StationTrain[] = [];
-        if (Array.isArray(data.trains)) {
-          trainList = data.trains;
-        } else if (Array.isArray(data.data)) {
-          trainList = data.data;
-        } else if (Array.isArray(data)) {
-          trainList = data;
-        }
-
-        setTrains(trainList);
-        setFetched(true);
-      } else if (result.error) {
-        setError(result.error);
-        setFetched(true);
+      if (!res.ok || json.error) {
+        setError(json.error || "Station not found");
+      } else if (json.data) {
+        setData(json.data);
       } else {
-        setTrains([]);
-        setFetched(true);
+        setError("No data found");
       }
     } catch {
       setError("Network error. Please try again.");
-      setFetched(true);
     } finally {
       setLoading(false);
     }
-  }
-
-  function getTrainNumber(train: StationTrain): string {
-    // Try multiple possible field names
-    const val = train.train_number || train.train_no || train.number || train.no || train.id || train.trainNo;
-    if (typeof val === "string") return val;
-    if (typeof val === "object" && val !== null) return JSON.stringify(val);
-    return "";
-  }
-
-  function getTrainName(train: StationTrain): string {
-    // Try multiple possible field names
-    const name = train.train_name || train.name || train.title || train.trainName;
-    if (typeof name === "string") return name;
-    if (typeof name === "object" && name !== null) {
-      const obj = name as Record<string, unknown>;
-      return String(obj.name || obj.title || obj.text || JSON.stringify(obj));
-    }
-    return "";
-  }
-
-  function extractTime(val: unknown): string {
-    if (!val) return "-";
-    if (typeof val === "string") return val;
-    if (typeof val === "object" && val !== null) {
-      const obj = val as Record<string, unknown>;
-      return String(obj.time || obj.scheduled || obj.actual || obj.timestamp || JSON.stringify(obj));
-    }
-    return String(val);
-  }
-
-  function getArrival(train: StationTrain): string {
-    return extractTime(train.arrival || train.scheduled_arrival);
-  }
-
-  function getDeparture(train: StationTrain): string {
-    return extractTime(train.departure || train.scheduled_departure);
-  }
-
-  function getDelay(train: StationTrain): number {
-    return Number(train.delay || train.late || 0);
-  }
-
-  function getPlatform(train: StationTrain): number | string {
-    const p = train.platform || train.plat;
-    if (typeof p === "object" && p !== null) return JSON.stringify(p);
-    return p || "-";
   }
 
   return (
@@ -150,6 +94,7 @@ export default function StationLivePage() {
           >
             <option value="2">Next 2 hours</option>
             <option value="4">Next 4 hours</option>
+            <option value="6">Next 6 hours</option>
             <option value="8">Next 8 hours</option>
           </select>
           <Button onClick={handleSearch} disabled={loading || !stationCode}>
@@ -161,66 +106,79 @@ export default function StationLivePage() {
         {error && (
           <div className="mt-4 flex items-center gap-2 rounded-lg border border-danger/30 bg-danger-soft p-4 text-danger">
             <AlertCircle size={18} />
-            <span>{typeof error === "string" ? error : "An error occurred"}</span>
+            <span>{error}</span>
           </div>
         )}
 
-        {fetched && !error && trains.length === 0 && (
-          <div className="mt-6 rounded-lg border border-border bg-surface-2 p-8 text-center">
-            <Train className="mx-auto mb-3 text-muted-2" size={40} />
-            <p className="text-muted">No trains found in the selected time window</p>
-          </div>
-        )}
-
-        {trains.length > 0 && (
+        {data && (
           <div className="mt-6">
             <div className="mb-4 flex items-center gap-2">
               <MapPin className="text-accent" size={20} />
               <h2 className="text-xl font-semibold text-foreground">
-                {stationName || stationCode.toUpperCase()}
+                {data.station.name} ({data.station.code})
               </h2>
-              <span className="text-sm text-muted">- {trains.length} trains</span>
+              <span className="text-sm text-muted">
+                - {data.count} trains ({data.window.from} to {data.window.to})
+              </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="px-4 py-3 text-left text-muted-2">Train</th>
-                    <th className="px-4 py-3 text-left text-muted-2">Name</th>
-                    <th className="px-4 py-3 text-left text-muted-2">Arrival</th>
-                    <th className="px-4 py-3 text-left text-muted-2">Departure</th>
-                    <th className="px-4 py-3 text-left text-muted-2">Platform</th>
-                    <th className="px-4 py-3 text-left text-muted-2">Delay</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {trains.map((train, idx) => {
-                    const delay = getDelay(train);
-                    return (
+            {data.trains.length === 0 ? (
+              <div className="rounded-lg border border-border bg-surface-2 p-8 text-center">
+                <Train className="mx-auto mb-3 text-muted-2" size={40} />
+                <p className="text-muted">No trains found in the selected time window</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="px-4 py-3 text-left text-muted-2">Train</th>
+                      <th className="px-4 py-3 text-left text-muted-2">Name</th>
+                      <th className="px-4 py-3 text-left text-muted-2">Arrival</th>
+                      <th className="px-4 py-3 text-left text-muted-2">Departure</th>
+                      <th className="px-4 py-3 text-left text-muted-2">Platform</th>
+                      <th className="px-4 py-3 text-left text-muted-2">Status</th>
+                      <th className="px-4 py-3 text-left text-muted-2">Delay</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.trains.map((t, idx) => (
                       <tr key={idx} className="border-b border-border hover:bg-surface-2">
                         <td className="px-4 py-3 font-medium text-foreground">
-                          {getTrainNumber(train)}
+                          {t.train.number}
                         </td>
-                        <td className="px-4 py-3 text-muted">{getTrainName(train)}</td>
-                        <td className="px-4 py-3 text-foreground">{getArrival(train)}</td>
-                        <td className="px-4 py-3 text-foreground">{getDeparture(train)}</td>
-                        <td className="px-4 py-3 text-foreground">{getPlatform(train)}</td>
+                        <td className="px-4 py-3 text-muted">{t.train.name}</td>
+                        <td className="px-4 py-3 text-foreground">{t.stop.arrival || "-"}</td>
+                        <td className="px-4 py-3 text-foreground">{t.stop.departure || "-"}</td>
+                        <td className="px-4 py-3 text-foreground">{t.live.platform || "-"}</td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`rounded px-2 py-1 text-xs font-semibold ${
+                              t.live.type === "at-station"
+                                ? "bg-part/20 text-part"
+                                : t.live.type === "departed"
+                                ? "bg-vacant/20 text-vacant"
+                                : "bg-muted-2/20 text-muted-2"
+                            }`}
+                          >
+                            {t.live.type}
+                          </span>
+                        </td>
                         <td className="px-4 py-3">
                           <span
                             className={`font-medium ${
-                              delay > 0 ? "text-part" : "text-vacant"
+                              t.live.delayMinutes > 0 ? "text-part" : "text-vacant"
                             }`}
                           >
-                            {delay > 0 ? `${delay} min` : "On Time"}
+                            {t.live.delayMinutes > 0 ? `${t.live.delayMinutes} min` : "On Time"}
                           </span>
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>

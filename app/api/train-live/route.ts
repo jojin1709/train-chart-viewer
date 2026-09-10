@@ -1,32 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { configure, trackTrain } from "railkit";
+import { getTrainLiveStatus } from "@/lib/railradar";
 
 export const runtime = "nodejs";
 
-function initRailKit() {
-  const key = process.env.RAILKIT_API_KEY;
-  if (!key) throw new Error("RAILKIT_API_KEY not set");
-  configure(key);
-}
-
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const trainNumber = searchParams.get("train");
-  const date = searchParams.get("date");
+  const train = searchParams.get("train") || "";
+  const date = searchParams.get("date") || undefined;
 
-  if (!trainNumber || !/^\d{5}$/.test(trainNumber)) {
-    return NextResponse.json({ error: "Train number must be 5 digits" }, { status: 400 });
-  }
-  if (!date) {
-    return NextResponse.json({ error: "Date required (DD-MM-YYYY)" }, { status: 400 });
+  if (!train) {
+    return NextResponse.json({ error: "Train number required" }, { status: 400 });
   }
 
   try {
-    initRailKit();
-    const result = await trackTrain(trainNumber, date);
-    return NextResponse.json(result);
+    const data = await getTrainLiveStatus(train, date);
+    if (!data) {
+      return NextResponse.json({ error: "Train not found" }, { status: 404 });
+    }
+    return NextResponse.json({ success: true, data });
   } catch (error) {
-    console.error("Live tracking error:", error);
-    return NextResponse.json({ error: "Failed to track train" }, { status: 500 });
+    console.error("Live status error:", error);
+    return NextResponse.json({ error: "Failed to fetch live status" }, { status: 500 });
   }
 }

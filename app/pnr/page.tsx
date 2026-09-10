@@ -4,30 +4,47 @@ import * as React from "react";
 import { Search, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface PassengerData {
-  serialNumber?: string;
-  serial_number?: string;
-  booking?: { status?: string; coach?: string; berthNo?: number; berth_number?: number; berthCode?: string; berth_code?: string; details?: string };
-  current?: { status?: string; coach?: string; berthNo?: number; berth_number?: number; berthCode?: string; berth_code?: string; details?: string };
+interface PNRPassenger {
+  passengerNumber: number;
+  bookingStatus: string;
+  currentStatus: string;
+  coach: string;
+  berthNumber: number;
+  berthCode: string;
+  coachPosition: string;
+  isConfirmed: boolean;
+  isRAC: boolean;
+  isWaitlisted: boolean;
 }
 
-interface PNRResponse {
-  success?: boolean;
-  data?: {
-    pnr?: string;
-    train?: Record<string, unknown>;
-    journey?: Record<string, unknown>;
-    chart?: Record<string, unknown>;
-    booking?: Record<string, unknown>;
-    passengers?: PassengerData[];
+interface PNRData {
+  pnrNumber: string;
+  train: {
+    number: string;
+    name: string;
+    source: { code: string; name: string };
+    destination: { code: string; name: string };
+    boardingPoint: { code: string; name: string };
+    reservationUpto: { code: string; name: string };
   };
-  error?: string;
+  journey: {
+    date: string;
+    class: string;
+    quota: string;
+    bookingFare: string;
+  };
+  charting: {
+    isPrepared: boolean;
+    status: string;
+    chartUrl: string;
+  };
+  passengers: PNRPassenger[];
 }
 
 export default function PNRPage() {
   const [pnr, setPnr] = React.useState("");
   const [loading, setLoading] = React.useState(false);
-  const [result, setResult] = React.useState<PNRResponse | null>(null);
+  const [data, setData] = React.useState<PNRData | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   async function handleCheck() {
@@ -38,16 +55,16 @@ export default function PNRPage() {
 
     setLoading(true);
     setError(null);
-    setResult(null);
+    setData(null);
 
     try {
       const res = await fetch(`/api/pnr?pnr=${pnr}`);
-      const data = await res.json();
+      const json = await res.json();
 
-      if (data.success === false && data.error) {
-        setError(data.error);
-      } else if (data.success === true || data.data) {
-        setResult(data);
+      if (!res.ok || json.error) {
+        setError(json.error || "PNR not found");
+      } else if (json.data) {
+        setData(json.data);
       } else {
         setError("No PNR data found");
       }
@@ -57,55 +74,6 @@ export default function PNRPage() {
       setLoading(false);
     }
   }
-
-  // Helper to safely extract string from nested objects
-  function str(val: unknown): string {
-    if (!val) return "";
-    if (typeof val === "string") return val;
-    if (typeof val === "number") return String(val);
-    if (typeof val === "object" && val !== null) {
-      const obj = val as Record<string, unknown>;
-      return String(obj.name || obj.code || obj.text || JSON.stringify(obj));
-    }
-    return String(val);
-  }
-
-  function num(val: unknown): number {
-    if (!val) return 0;
-    if (typeof val === "number") return val;
-    if (typeof val === "string") return parseInt(val) || 0;
-    return 0;
-  }
-
-  const data = result?.data;
-
-  // Extract train info
-  const train = data?.train || {};
-  const trainNumber = str(train.number || train.train_number || train.train_no);
-  const trainName = str(train.name || train.train_name);
-
-  // Extract journey info
-  const journey = (data?.journey || {}) as Record<string, unknown>;
-  const journeyDate = str(journey.dateOfJourney || journey.date_of_journey || journey.journey_date);
-  const className = str(journey.class || journey.coach_class);
-  const quota = str(journey.quota);
-  const source = (journey.source || journey.from || journey.boarding_point || {}) as Record<string, unknown>;
-  const sourceCode = str(source.code || source.station_code);
-  const sourceName = str(source.name || source.station_name);
-  const dest = (journey.destination || journey.to || {}) as Record<string, unknown>;
-  const destCode = str(dest.code || dest.station_code);
-  const destName = str(dest.name || dest.station_name);
-
-  // Extract chart status
-  const chart = data?.chart || {};
-  const chartStatus = str(chart.status || chart.chart_status);
-
-  // Extract fare
-  const booking = data?.booking || {};
-  const fare = num(booking.fare || booking.ticketFare || booking.ticket_fare || booking.total_fare);
-
-  // Extract passengers
-  const passengers = data?.passengers || [];
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
@@ -146,20 +114,20 @@ export default function PNRPage() {
                 <div>
                   <span className="text-muted-2">Train:</span>
                   <span className="ml-2 font-medium text-foreground">
-                    {trainNumber} {trainName ? `- ${trainName}` : ""}
+                    {data.train.number} - {data.train.name}
                   </span>
                 </div>
                 <div>
                   <span className="text-muted-2">Journey Date:</span>
-                  <span className="ml-2 font-medium text-foreground">{journeyDate}</span>
+                  <span className="ml-2 font-medium text-foreground">{data.journey.date}</span>
                 </div>
                 <div>
                   <span className="text-muted-2">Class:</span>
-                  <span className="ml-2 font-medium text-foreground">{className}</span>
+                  <span className="ml-2 font-medium text-foreground">{data.journey.class}</span>
                 </div>
                 <div>
                   <span className="text-muted-2">Quota:</span>
-                  <span className="ml-2 font-medium text-foreground">{quota}</span>
+                  <span className="ml-2 font-medium text-foreground">{data.journey.quota}</span>
                 </div>
               </div>
             </div>
@@ -169,11 +137,11 @@ export default function PNRPage() {
               <h3 className="mb-2 font-semibold text-foreground">Route</h3>
               <div className="flex items-center gap-3 text-sm">
                 <span className="font-medium text-foreground">
-                  {sourceCode} {sourceName ? `(${sourceName})` : ""}
+                  {data.train.boardingPoint.code} ({data.train.boardingPoint.name})
                 </span>
                 <span className="text-muted-2">→</span>
                 <span className="font-medium text-foreground">
-                  {destCode} {destName ? `(${destName})` : ""}
+                  {data.train.reservationUpto.code} ({data.train.reservationUpto.name})
                 </span>
               </div>
             </div>
@@ -182,49 +150,51 @@ export default function PNRPage() {
             <div className="rounded-lg border border-border bg-surface-2 p-4">
               <h3 className="mb-2 font-semibold text-foreground">Chart Status</h3>
               <div className="flex items-center gap-2">
-                {chartStatus.toLowerCase().includes("prepared") ? (
+                {data.charting.isPrepared ? (
                   <CheckCircle className="text-vacant" size={18} />
                 ) : (
                   <AlertCircle className="text-muted-2" size={18} />
                 )}
-                <span className="font-medium text-foreground">{chartStatus || "Not Available"}</span>
+                <span className="font-medium text-foreground">{data.charting.status}</span>
               </div>
             </div>
 
             {/* Passengers */}
-            {passengers.length > 0 && (
+            {data.passengers.length > 0 && (
               <div className="rounded-lg border border-border bg-surface-2 p-4">
                 <h3 className="mb-3 font-semibold text-foreground">Passenger Status</h3>
                 <div className="space-y-3">
-                  {passengers.map((p, idx) => {
-                    const current = p.current || p.booking || {};
-                    const status = str(current.status);
-                    const coach = str(current.coach);
-                    const berthNo = current.berthNo || current.berth_number;
-                    const berthCode = str(current.berthCode || current.berth_code);
+                  {data.passengers.map((p) => {
+                    const status = p.currentStatus || p.bookingStatus;
+                    const isCNF = p.isConfirmed;
+                    const isRAC = p.isRAC;
+                    const isWL = p.isWaitlisted;
 
                     return (
-                      <div key={idx} className="flex items-center justify-between rounded-lg border border-border bg-surface p-3">
+                      <div key={p.passengerNumber} className="flex items-center justify-between rounded-lg border border-border bg-surface p-3">
                         <div>
                           <span className="text-sm font-medium text-foreground">
-                            Passenger {idx + 1}
+                            Passenger {p.passengerNumber}
                           </span>
                           <div className="mt-1 text-xs text-muted-2">
-                            Coach: {coach} | Berth: {berthNo || "-"} ({berthCode})
+                            Coach: {p.coach || "-"} | Berth: {p.berthNumber || "-"} ({p.berthCode || "-"})
+                          </div>
+                          <div className="mt-0.5 text-xs text-muted-2">
+                            Booked: {p.bookingStatus}
                           </div>
                         </div>
                         <span
                           className={`rounded px-2 py-1 text-xs font-semibold ${
-                            status === "CNF"
+                            isCNF
                               ? "bg-vacant/20 text-vacant"
-                              : status === "RAC"
+                              : isRAC
                               ? "bg-part/20 text-part"
-                              : status === "WL"
+                              : isWL
                               ? "bg-danger/20 text-danger"
                               : "bg-occupied/20 text-occupied"
                           }`}
                         >
-                          {status || "Unknown"}
+                          {status}
                         </span>
                       </div>
                     );
@@ -234,12 +204,12 @@ export default function PNRPage() {
             )}
 
             {/* Fare */}
-            {fare > 0 && (
+            {data.journey.bookingFare && (
               <div className="rounded-lg border border-border bg-surface-2 p-4">
                 <h3 className="mb-2 font-semibold text-foreground">Fare Details</h3>
                 <div className="text-sm">
                   <span className="text-muted-2">Total Fare:</span>
-                  <span className="ml-2 text-lg font-bold text-accent">₹{fare}</span>
+                  <span className="ml-2 text-lg font-bold text-accent">₹{data.journey.bookingFare}</span>
                 </div>
               </div>
             )}

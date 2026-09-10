@@ -4,16 +4,26 @@ import * as React from "react";
 import { Search, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface FareInfo {
-  base_fare?: number;
-  reservation_charge?: number;
-  superfast_charge?: number;
-  catering_charge?: number;
-  gst?: number;
-  dynamic_fare?: number;
-  total?: number;
-  total_fare?: number;
-  fare?: number;
+interface FareBreakdown {
+  baseFare: number;
+  reservationCharge: number;
+  superfastCharge: number;
+  otherCharge: number;
+  tatkalFare: number;
+  goodsServiceTax: number;
+  cateringCharge: number;
+  dynamicFare: number;
+}
+
+interface FareData {
+  trainNumber: string;
+  trainName: string;
+  sourceStation: string;
+  destinationStation: string;
+  classCode: string;
+  quotaCode: string;
+  totalFare: number;
+  breakdown: FareBreakdown;
 }
 
 export default function FarePage() {
@@ -24,13 +34,12 @@ export default function FarePage() {
   const [cls, setCls] = React.useState("SL");
   const [quota, setQuota] = React.useState("GN");
   const [loading, setLoading] = React.useState(false);
-  const [fareData, setFareData] = React.useState<FareInfo | null>(null);
+  const [fareData, setFareData] = React.useState<FareData | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const [fetched, setFetched] = React.useState(false);
 
   React.useEffect(() => {
     const today = new Date();
-    const formatted = `${String(today.getDate()).padStart(2, "0")}-${String(today.getMonth() + 1).padStart(2, "0")}-${today.getFullYear()}`;
+    const formatted = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     setDate(formatted);
   }, []);
 
@@ -46,30 +55,19 @@ export default function FarePage() {
 
     try {
       const res = await fetch(
-        `/api/fare?train=${trainNo}&date=${date}&from=${from.toUpperCase()}&to=${to.toUpperCase()}&class=${cls}&quota=${quota}`
+        `/api/fare?train=${trainNo}&from=${from.toUpperCase()}&to=${to.toUpperCase()}&date=${date}&class=${cls}&quota=${quota}`
       );
-      const result = await res.json();
+      const json = await res.json();
 
-      if (result.success !== false && result.data) {
-        const data = result.data;
-        // Handle different response formats
-        const fareInfo: FareInfo = {
-          base_fare: Number(data.base_fare || data.baseFare || 0),
-          reservation_charge: Number(data.reservation_charge || data.reservationCharge || 0),
-          superfast_charge: Number(data.superfast_charge || data.superfastCharge || 0),
-          catering_charge: Number(data.catering_charge || data.cateringCharge || 0),
-          gst: Number(data.gst || 0),
-          dynamic_fare: Number(data.dynamic_fare || data.dynamicFare || 0),
-          total: Number(data.total || data.total_fare || data.totalFare || data.fare || 0),
-        };
-        setFareData(fareInfo);
+      if (!res.ok || json.error) {
+        setError(json.error || "Failed to fetch fare");
+      } else if (json.data) {
+        setFareData(json.data);
       } else {
-        setError(result.error || "Failed to fetch fare");
+        setError("No fare data found");
       }
-      setFetched(true);
     } catch {
       setError("Network error. Please try again.");
-      setFetched(true);
     } finally {
       setLoading(false);
     }
@@ -115,12 +113,12 @@ export default function FarePage() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-muted-2">Date (DD-MM-YYYY)</label>
+            <label className="mb-1 block text-xs text-muted-2">Date (YYYY-MM-DD)</label>
             <input
               type="text"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              placeholder="DD-MM-YYYY"
+              placeholder="YYYY-MM-DD"
               className="w-full rounded-lg border border-border-strong bg-surface-2 px-4 py-3 text-foreground placeholder:text-muted-2 focus:outline-none focus:ring-2 focus:ring-accent"
             />
           </div>
@@ -149,7 +147,7 @@ export default function FarePage() {
               <option value="GN">General (GN)</option>
               <option value="TQ">Tatkal (TQ)</option>
               <option value="LD">Ladies (LD)</option>
-              <option value="SS">Senior Citizen (SS)</option>
+              <option value="PT">Premium Tatkal (PT)</option>
             </select>
           </div>
         </div>
@@ -162,66 +160,93 @@ export default function FarePage() {
         {error && (
           <div className="mt-4 flex items-center gap-2 rounded-lg border border-danger/30 bg-danger-soft p-4 text-danger">
             <AlertCircle size={18} />
-            <span>{typeof error === "string" ? error : "An error occurred"}</span>
+            <span>{error}</span>
           </div>
         )}
 
-        {fetched && !error && fareData && (
+        {fareData && (
           <div className="mt-6 space-y-4">
+            {/* Train Info */}
+            <div className="rounded-lg border border-border bg-surface-2 p-4">
+              <h3 className="mb-2 font-semibold text-foreground">Train Information</h3>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <span className="text-muted-2">Train:</span>
+                  <span className="ml-2 font-medium text-foreground">
+                    {fareData.trainNumber} - {fareData.trainName}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-2">Route:</span>
+                  <span className="ml-2 font-medium text-foreground">
+                    {fareData.sourceStation} → {fareData.destinationStation}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-2">Class:</span>
+                  <span className="ml-2 font-medium text-foreground">{fareData.classCode}</span>
+                </div>
+                <div>
+                  <span className="text-muted-2">Quota:</span>
+                  <span className="ml-2 font-medium text-foreground">{fareData.quotaCode}</span>
+                </div>
+              </div>
+            </div>
+
             {/* Fare Breakdown */}
             <div className="rounded-lg border border-border bg-surface-2 p-4">
               <h3 className="mb-3 font-semibold text-foreground">Fare Breakdown</h3>
               <div className="space-y-2 text-sm">
-                {fareData.base_fare ? (
+                {fareData.breakdown.baseFare > 0 && (
                   <div className="flex justify-between">
                     <span className="text-muted">Base Fare</span>
-                    <span className="font-medium text-foreground">₹{fareData.base_fare}</span>
+                    <span className="font-medium text-foreground">₹{fareData.breakdown.baseFare}</span>
                   </div>
-                ) : null}
-                {fareData.reservation_charge ? (
+                )}
+                {fareData.breakdown.reservationCharge > 0 && (
                   <div className="flex justify-between">
                     <span className="text-muted">Reservation Charge</span>
-                    <span className="font-medium text-foreground">₹{fareData.reservation_charge}</span>
+                    <span className="font-medium text-foreground">₹{fareData.breakdown.reservationCharge}</span>
                   </div>
-                ) : null}
-                {fareData.superfast_charge ? (
+                )}
+                {fareData.breakdown.superfastCharge > 0 && (
                   <div className="flex justify-between">
                     <span className="text-muted">Superfast Charge</span>
-                    <span className="font-medium text-foreground">₹{fareData.superfast_charge}</span>
+                    <span className="font-medium text-foreground">₹{fareData.breakdown.superfastCharge}</span>
                   </div>
-                ) : null}
-                {fareData.catering_charge ? (
+                )}
+                {fareData.breakdown.cateringCharge > 0 && (
                   <div className="flex justify-between">
                     <span className="text-muted">Catering Charge</span>
-                    <span className="font-medium text-foreground">₹{fareData.catering_charge}</span>
+                    <span className="font-medium text-foreground">₹{fareData.breakdown.cateringCharge}</span>
                   </div>
-                ) : null}
-                {fareData.gst ? (
+                )}
+                {fareData.breakdown.goodsServiceTax > 0 && (
                   <div className="flex justify-between">
                     <span className="text-muted">GST</span>
-                    <span className="font-medium text-foreground">₹{fareData.gst}</span>
+                    <span className="font-medium text-foreground">₹{fareData.breakdown.goodsServiceTax}</span>
                   </div>
-                ) : null}
-                {fareData.dynamic_fare ? (
+                )}
+                {fareData.breakdown.dynamicFare > 0 && (
                   <div className="flex justify-between">
                     <span className="text-muted">Dynamic Fare</span>
-                    <span className="font-medium text-foreground">₹{fareData.dynamic_fare}</span>
+                    <span className="font-medium text-foreground">₹{fareData.breakdown.dynamicFare}</span>
                   </div>
-                ) : null}
+                )}
+                {fareData.breakdown.otherCharge > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted">Other Charges</span>
+                    <span className="font-medium text-foreground">₹{fareData.breakdown.otherCharge}</span>
+                  </div>
+                )}
                 <div className="border-t border-border pt-2">
                   <div className="flex justify-between">
                     <span className="font-semibold text-foreground">Total Fare</span>
-                    <span className="text-xl font-bold text-accent">₹{fareData.total}</span>
+                    <span className="text-xl font-bold text-accent">₹{fareData.totalFare}</span>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {fetched && !error && !fareData && (
-          <div className="mt-6 rounded-lg border border-border bg-surface-2 p-8 text-center">
-            <p className="text-muted">No fare data available</p>
           </div>
         )}
       </div>

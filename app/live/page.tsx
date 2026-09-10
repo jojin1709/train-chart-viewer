@@ -1,45 +1,56 @@
 "use client";
 
 import * as React from "react";
-import { Search, Loader2, MapPin, Clock, AlertCircle, Train } from "lucide-react";
+import { Search, Loader2, MapPin, Clock, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface RouteStop {
-  station?: { code: string; name: string };
-  station_code?: string;
-  station_name?: string;
-  arrival?: string;
-  departure?: string;
-  scheduled_arrival?: string;
-  scheduled_departure?: string;
-  actual_arrival?: string;
-  actual_departure?: string;
-  delay?: number;
-  platform?: number;
-  status?: string;
+interface LiveRouteStop {
+  sequence: number;
+  stationCode: string;
+  stationName: string;
+  isHalt: boolean;
+  scheduledArrival: string | null;
+  scheduledDeparture: string | null;
+  actualArrival: string | null;
+  actualDeparture: string | null;
+  delayArrival: number | null;
+  delayDeparture: number | null;
+  status: string;
+  distance: number;
+  platform: string | null;
 }
 
-interface LiveTrainInfo {
-  train_number?: string;
-  train_name?: string;
-  date?: string;
-  current_station?: { code: string; name: string } | string;
-  status?: string;
-  delay?: number;
-  speed?: number;
-  route?: RouteStop[];
+interface LiveTrainData {
+  trainNumber: string;
+  trainName: string;
+  startDate: string;
+  status: string;
+  delayMinutes: number;
+  currentLocation: {
+    stationCode: string;
+    status: string;
+    segmentProgress: number;
+    speedKmh: number;
+  } | null;
+  nextHalt: {
+    stationCode: string;
+    stationName: string;
+    sequence: number;
+    distance: number;
+  } | null;
+  route: LiveRouteStop[];
 }
 
 export default function LiveTrackingPage() {
   const [trainNumber, setTrainNumber] = React.useState("");
   const [date, setDate] = React.useState("");
   const [loading, setLoading] = React.useState(false);
-  const [trainInfo, setTrainInfo] = React.useState<LiveTrainInfo | null>(null);
+  const [data, setData] = React.useState<LiveTrainData | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const today = new Date();
-    const formatted = `${String(today.getDate()).padStart(2, "0")}-${String(today.getMonth() + 1).padStart(2, "0")}-${today.getFullYear()}`;
+    const formatted = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
     setDate(formatted);
   }, []);
 
@@ -51,42 +62,25 @@ export default function LiveTrackingPage() {
 
     setLoading(true);
     setError(null);
-    setTrainInfo(null);
+    setData(null);
 
     try {
-      const res = await fetch(`/api/train-live?train=${trainNumber}&date=${date}`);
-      const result = await res.json();
+      const dateParam = date ? date.replace(/-/g, "") : "";
+      const res = await fetch(`/api/train-live?train=${trainNumber}${dateParam ? `&date=${date}` : ""}`);
+      const json = await res.json();
 
-      if (result.success !== false && result.data) {
-        setTrainInfo(result.data);
+      if (!res.ok || json.error) {
+        setError(json.error || "Train not found");
+      } else if (json.data) {
+        setData(json.data);
       } else {
-        setError(result.error || "Train not found");
+        setError("No data found");
       }
     } catch {
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
-  }
-
-  function getStationCode(station: { code: string; name: string } | string | undefined): string {
-    if (!station) return "";
-    if (typeof station === "string") return station;
-    return station.code || "";
-  }
-
-  function getStationName(station: { code: string; name: string } | string | undefined): string {
-    if (!station) return "";
-    if (typeof station === "string") return "";
-    return station.name || "";
-  }
-
-  function getStopStation(stop: RouteStop): { code: string; name: string } {
-    if (stop.station) return stop.station;
-    return {
-      code: String(stop.station_code || ""),
-      name: String(stop.station_name || ""),
-    };
   }
 
   return (
@@ -110,7 +104,7 @@ export default function LiveTrackingPage() {
             type="text"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            placeholder="DD-MM-YYYY"
+            placeholder="YYYY-MM-DD"
             className="w-full rounded-lg border border-border-strong bg-surface-2 px-4 py-3 text-foreground placeholder:text-muted-2 focus:outline-none focus:ring-2 focus:ring-accent sm:w-40"
           />
           <Button onClick={handleTrack} disabled={loading || trainNumber.length !== 5}>
@@ -122,31 +116,35 @@ export default function LiveTrackingPage() {
         {error && (
           <div className="mt-4 flex items-center gap-2 rounded-lg border border-danger/30 bg-danger-soft p-4 text-danger">
             <AlertCircle size={18} />
-            <span>{typeof error === "string" ? error : "An error occurred"}</span>
+            <span>{error}</span>
           </div>
         )}
 
-        {trainInfo && (
+        {data && (
           <div className="mt-6 space-y-4">
             {/* Train Header */}
             <div className="rounded-lg border border-border bg-surface-2 p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-foreground">
-                    {String(trainInfo.train_number || "")} - {String(trainInfo.train_name || "")}
+                    {data.trainNumber} - {data.trainName}
                   </h2>
-                  <p className="text-sm text-muted">Date: {String(trainInfo.date || "")}</p>
+                  <p className="text-sm text-muted">Date: {data.startDate}</p>
                 </div>
                 <div className="text-right">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="text-accent" size={18} />
-                    <span className="font-semibold text-foreground">
-                      {getStationCode(trainInfo.current_station)}
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted">
-                    {getStationName(trainInfo.current_station)}
-                  </p>
+                  {data.currentLocation && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <MapPin className="text-accent" size={18} />
+                        <span className="font-semibold text-foreground">
+                          {data.currentLocation.stationCode}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted">
+                        {data.currentLocation.status}
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -155,36 +153,44 @@ export default function LiveTrackingPage() {
             <div className="flex flex-wrap gap-4">
               <div className="flex-1 rounded-lg border border-border bg-surface-2 p-4 text-center">
                 <p className="text-xs text-muted-2">Status</p>
-                <p className={`text-lg font-bold ${Number(trainInfo.delay || 0) > 0 ? "text-part" : "text-vacant"}`}>
-                  {String(trainInfo.status || "Unknown")}
+                <p className={`text-lg font-bold ${data.delayMinutes > 0 ? "text-part" : "text-vacant"}`}>
+                  {data.status}
                 </p>
               </div>
               <div className="flex-1 rounded-lg border border-border bg-surface-2 p-4 text-center">
                 <p className="text-xs text-muted-2">Delay</p>
-                <p className={`text-lg font-bold ${Number(trainInfo.delay || 0) > 0 ? "text-part" : "text-vacant"}`}>
-                  {Number(trainInfo.delay || 0) > 0 ? `${trainInfo.delay} min` : "On Time"}
+                <p className={`text-lg font-bold ${data.delayMinutes > 0 ? "text-part" : "text-vacant"}`}>
+                  {data.delayMinutes > 0 ? `${data.delayMinutes} min` : "On Time"}
                 </p>
               </div>
               <div className="flex-1 rounded-lg border border-border bg-surface-2 p-4 text-center">
                 <p className="text-xs text-muted-2">Speed</p>
-                <p className="text-lg font-bold text-foreground">{String(trainInfo.speed || 0)} km/h</p>
+                <p className="text-lg font-bold text-foreground">
+                  {data.currentLocation?.speedKmh || 0} km/h
+                </p>
               </div>
+              {data.nextHalt && (
+                <div className="flex-1 rounded-lg border border-border bg-surface-2 p-4 text-center">
+                  <p className="text-xs text-muted-2">Next Stop</p>
+                  <p className="text-lg font-bold text-accent">{data.nextHalt.stationCode}</p>
+                  <p className="text-xs text-muted">{data.nextHalt.stationName}</p>
+                </div>
+              )}
             </div>
 
             {/* Route Timeline */}
-            {trainInfo.route && trainInfo.route.length > 0 && (
+            {data.route && data.route.length > 0 && (
               <div className="rounded-lg border border-border bg-surface-2 p-4">
                 <h3 className="mb-4 font-semibold text-foreground">Route Timeline</h3>
                 <div className="space-y-2">
-                  {trainInfo.route.map((stop, idx) => {
-                    const station = getStopStation(stop);
-                    const currentCode = getStationCode(trainInfo.current_station);
-                    const isCurrent = station.code === currentCode;
-                    const delay = Number(stop.delay || 0);
+                  {data.route.filter((s) => s.isHalt).map((stop) => {
+                    const currentCode = data.currentLocation?.stationCode;
+                    const isCurrent = stop.stationCode === currentCode;
+                    const delay = stop.delayDeparture || stop.delayArrival || 0;
 
                     return (
                       <div
-                        key={idx}
+                        key={stop.sequence}
                         className={`flex items-center justify-between rounded-lg border p-3 ${
                           isCurrent
                             ? "border-accent bg-accent/10"
@@ -194,16 +200,16 @@ export default function LiveTrackingPage() {
                         <div className="flex items-center gap-3">
                           <div
                             className={`h-3 w-3 rounded-full ${
-                              stop.status === "Reached" || stop.status === "departed"
+                              stop.status === "departed"
                                 ? "bg-vacant"
-                                : stop.status === "Approaching" || stop.status === "arrived"
+                                : stop.status === "at-station"
                                 ? "bg-part"
                                 : "bg-muted-2"
                             }`}
                           />
                           <div>
-                            <p className="font-medium text-foreground">{station.code}</p>
-                            <p className="text-xs text-muted">{station.name}</p>
+                            <p className="font-medium text-foreground">{stop.stationCode}</p>
+                            <p className="text-xs text-muted">{stop.stationName}</p>
                           </div>
                         </div>
                         <div className="text-right text-sm">
@@ -211,20 +217,20 @@ export default function LiveTrackingPage() {
                             <Clock size={14} className="text-muted-2" />
                             <span className="text-muted-2">Sched:</span>
                             <span className="font-medium text-foreground">
-                              {String(stop.departure || stop.scheduled_departure || stop.arrival || stop.scheduled_arrival || "-")}
+                              {stop.scheduledDeparture || stop.scheduledArrival || "-"}
                             </span>
                           </div>
-                          {(stop.actual_departure || stop.actual_arrival) && (
+                          {(stop.actualDeparture || stop.actualArrival) && (
                             <div className="flex items-center gap-2">
                               <Clock size={14} className="text-accent" />
                               <span className="text-muted-2">Actual:</span>
                               <span className="font-medium text-accent">
-                                {String(stop.actual_departure || stop.actual_arrival)}
+                                {stop.actualDeparture || stop.actualArrival}
                               </span>
                             </div>
                           )}
                           {stop.platform && (
-                            <p className="text-xs text-muted-2">Platform: {String(stop.platform)}</p>
+                            <p className="text-xs text-muted-2">Platform: {stop.platform}</p>
                           )}
                           {delay > 0 && (
                             <p className="text-xs text-part">+{delay} min late</p>

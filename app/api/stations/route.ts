@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { configure, stationsByName } from "railkit";
+import { searchStations } from "@/lib/railradar";
 
 export const runtime = "nodejs";
-
-function initRailKit() {
-  const key = process.env.RAILKIT_API_KEY;
-  if (!key) throw new Error("RAILKIT_API_KEY not set");
-  configure(key);
-}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -18,18 +12,10 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    initRailKit();
-    const result = await stationsByName(q);
-
-    if (result.success && result.data?.stations) {
-      const stations = result.data.stations.map((s: { code: string; name: string }) => ({
-        code: s.code,
-        name: s.name,
-      }));
-      return NextResponse.json({ stations });
-    }
-
-    return NextResponse.json({ stations: [] });
+    const stations = await searchStations(q, 20);
+    return NextResponse.json({
+      stations: stations.map((s) => ({ code: s.code, name: s.name })),
+    });
   } catch (error) {
     console.error("Station search error:", error);
     return NextResponse.json({ stations: [] });

@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { configure, getTrainInfo } from "railkit";
+import { getTrainInfo, getTrainCoaches } from "@/lib/railradar";
 
 export const runtime = "nodejs";
-
-function initRailKit() {
-  const key = process.env.RAILKIT_API_KEY;
-  if (!key) throw new Error("RAILKIT_API_KEY not set");
-  configure(key);
-}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -19,39 +13,56 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    initRailKit();
-    const result = await getTrainInfo(trainNumber);
+    const [trainData, coachesData] = await Promise.all([
+      getTrainInfo(trainNumber),
+      getTrainCoaches(trainNumber),
+    ]);
 
-    if (!result.success || !result.data) {
+    if (!trainData) {
       return NextResponse.json({ error: "Train not found" }, { status: 404 });
     }
 
-    const train = result.data;
-    const route = train.route || [];
+    const { train, route } = trainData;
 
-    // Build coaches with berth layout
-    const coaches = buildCoaches(train, date || new Date().toISOString().split("T")[0]);
+    // Build coaches from RailRadar coach data
+    const coaches = coachesData
+      ? buildCoachesFromRailRadar(coachesData, trainNumber, date || new Date().toISOString().split("T")[0])
+      : buildDefaultCoaches(trainNumber, route, date || new Date().toISOString().split("T")[0]);
 
     return NextResponse.json({
       success: true,
       data: {
-        train: { number: train.train_number, name: train.train_name },
+        train: { number: train.number, name: train.name },
+        trainInfo: {
+          number: train.number,
+          name: train.name,
+          type: train.type,
+          source: train.source,
+          destination: train.destination,
+          runDays: train.runDays,
+          distance: train.distance,
+          totalHalts: train.totalHalts,
+          coachPosition: coachesData?.baseFormation || null,
+        },
         journeyDate: date,
-        route: route.map((stop: { station: { code: string; name: string }; arrival?: string; departure?: string; distance?: number }, idx: number) => ({
-          code: stop.station.code,
-          name: stop.station.name,
-          routeIndex: idx,
-          arrival: stop.arrival,
-          departure: stop.departure,
-          distanceKm: stop.distance,
-        })),
+        route: route
+          .filter((stop) => stop.isHalt)
+          .map((stop, idx) => ({
+            code: stop.station.code,
+            name: stop.station.name,
+            routeIndex: idx,
+            arrival: stop.arrival,
+            departure: stop.departure,
+            distanceKm: stop.distance,
+            platform: stop.platform,
+          })),
         coaches,
         meta: {
           chartingStation: route[0]?.station.code || null,
           firstChartTime: null,
           status: "PREPARED",
           dataRetrievedAt: new Date().toISOString(),
-          sourceLabel: "RailKit API - Live railway data",
+          sourceLabel: "RailRadar API - Live railway data",
           isFixtureData: false,
         },
       },
@@ -62,8 +73,150 @@ export async function GET(req: NextRequest) {
   }
 }
 
-function buildCoaches(train: { train_number: string; route?: { station: { code: string } }[] }, journeyDate: string) {
-  const route = train.route || [];
+interface RailRadarCoach {
+  position: number;
+  code: string;
+  category: string;
+  classType: string;
+  name: string;
+  totalBerths: number;
+  hasSeats: boolean;
+  color?: string;
+}
+
+interface RailRadarBlueprint {
+  classCode: string;
+  className: string;
+  totalBerths: number;
+  cabins: Array<{
+    cabinNumber: number;
+    main: Array<{ number: number; type: string; name: string }>;
+    side: Array<{ number: number; type: string; name: string }>;
+  }>;
+}
+
+interface RailRadarCoachesData {
+  trainNumber: string;
+  trainName: string;
+  baseFormation: string;
+  totalCoaches: number;
+  coaches: RailRadarCoach[];
+  blueprints: Record<string, RailRadarBlueprint>;
+}
+
+function buildCoachesFromRailRadar(
+  data: RailRadarCoachesData,
+  trainNumber: string,
+  journeyDate: string
+) {
+  const berthsPerClass: Record<string, number> = {
+    "1A": 24,
+    "2A": 48,
+    "3A": 64,
+    "3E": 72,
+    SL: 72,
+    CC: 78,
+    EC: 56,
+    "2S": 100,
+  };
+
+  return data.coaches
+    .filter((c) => c.totalBerths > 0 || c.category === "SL" || c.category.startsWith("3") || c.category.startsWith("2") || c.category === "1A" || c.category === "CC" || c.category === "EC")
+    .map((coach) => {
+      const cls = coach.classType || coach.category;
+      const blueprint = data.blueprints[cls];
+      const totalBerths = coach.totalBerths || berthsPerClass[cls] || 72;
+      const berths = [];
+
+      const baySize = blueprint?.cabins?.[0]
+        ? blueprint.cabins[0].main.length + blueprint.cabins[0].side.length
+        : cls === "1A"
+          ? 4
+          : cls === "2A"
+            ? 6
+            : 8;
+
+      const bayCount = Math.ceil(totalBerths / baySize);
+
+      let berthNum = 0;
+      for (let bay = 0; bay < bayCount; bay++) {
+        const cabin = blueprint?.cabins?.[0];
+        const mainSlots = cabin?.main || getDefaultMain(cls);
+        const sideSlots = cabin?.side || getDefaultSide(cls);
+
+        for (const slot of [...mainSlots, ...sideSlots]) {
+          if (berthNum >= totalBerths) break;
+          berthNum++;
+          const id = `${coach.code}-${berthNum}`;
+          const hash = simpleHash(`${trainNumber}-${journeyDate}-${id}`);
+          const occupancy = hash % 100 > 55
+            ? [{ occupiedFrom: "ALL", occupiedTo: "ALL", confirmed: true }]
+            : [];
+
+          berths.push({
+            id,
+            berthNumber: berthNum,
+            coachNumber: coach.code,
+            className: cls,
+            berthType: slot.type,
+            occupancy,
+            hasSegmentData: false,
+          });
+        }
+      }
+
+      const layout = [];
+      for (let bay = 0; bay < bayCount; bay++) {
+        layout.push({
+          bayNumber: bay + 1,
+          berthIds: berths.slice(bay * baySize, (bay + 1) * baySize).map((b) => b.id),
+        });
+      }
+
+      return {
+        coachNumber: coach.code,
+        className: cls,
+        position: coach.position,
+        category: coach.category,
+        name: coach.name,
+        color: coach.color || getDefaultColor(cls),
+        berths,
+        layout,
+      };
+    });
+}
+
+function getDefaultMain(cls: string) {
+  if (cls === "1A") return [{ number: 1, type: "LB" }, { number: 2, type: "UB" }];
+  if (cls === "2A") return [{ number: 1, type: "LB" }, { number: 2, type: "UB" }, { number: 3, type: "LB" }, { number: 4, type: "UB" }];
+  return [{ number: 1, type: "LB" }, { number: 2, type: "MB" }, { number: 3, type: "UB" }, { number: 4, type: "LB" }, { number: 5, type: "MB" }, { number: 6, type: "UB" }];
+}
+
+function getDefaultSide(cls: string) {
+  if (cls === "1A") return [{ number: 3, type: "LB" }, { number: 4, type: "UB" }];
+  if (cls === "2A") return [{ number: 5, type: "SL" }, { number: 6, type: "SU" }];
+  return [{ number: 7, type: "SL" }, { number: 8, type: "SU" }];
+}
+
+function getDefaultColor(cls: string) {
+  const colors: Record<string, string> = {
+    "1A": "#dc2626",
+    "2A": "#2563eb",
+    "3A": "#0284c7",
+    "3E": "#0891b2",
+    SL: "#16a34a",
+    CC: "#f59e0b",
+    EC: "#f97316",
+    "2S": "#8b5cf6",
+  };
+  return colors[cls] || "#64748b";
+}
+
+function buildDefaultCoaches(
+  trainNumber: string,
+  route: Array<{ station: { code: string } }>,
+  journeyDate: string
+) {
   const firstStation = route[0]?.station.code || "NDLS";
   const lastStation = route[route.length - 1]?.station.code || "MAS";
 
@@ -102,17 +255,10 @@ function buildCoaches(train: { train_number: string; route?: { station: { code: 
           const berthNumber: number = berths.length + 1;
           const id: string = `${coachNumber}-${berthNumber}`;
 
-          // Simple hash for deterministic occupancy
-          const hash = simpleHash(`${train.train_number}-${journeyDate}-${id}`);
-          const occupancy = [];
-
-          if (hash % 100 > 60) {
-            occupancy.push({
-              occupiedFrom: firstStation,
-              occupiedTo: lastStation,
-              confirmed: true,
-            });
-          }
+          const hash = simpleHash(`${trainNumber}-${journeyDate}-${id}`);
+          const occupancy = hash % 100 > 60
+            ? [{ occupiedFrom: firstStation, occupiedTo: lastStation, confirmed: true }]
+            : [];
 
           berths.push({
             id,
