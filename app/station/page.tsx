@@ -9,14 +9,14 @@ interface StationTrain {
   train_no?: string;
   train_name?: string;
   name?: string;
-  arrival?: string;
-  scheduled_arrival?: string;
-  departure?: string;
-  scheduled_departure?: string;
+  arrival?: string | { time?: string; scheduled?: string; actual?: string };
+  scheduled_arrival?: string | { time?: string; scheduled?: string };
+  departure?: string | { time?: string; scheduled?: string; actual?: string };
+  scheduled_departure?: string | { time?: string; scheduled?: string };
   delay?: number;
   late?: number;
-  platform?: number;
-  plat?: number;
+  platform?: number | string;
+  plat?: number | string;
   status?: string;
 }
 
@@ -81,15 +81,27 @@ export default function StationLivePage() {
 
   function getTrainName(train: StationTrain): string {
     const name = train.train_name || train.name;
-    return typeof name === "string" ? name : "";
+    if (typeof name === "string") return name;
+    if (typeof name === "object" && name !== null) return JSON.stringify(name);
+    return "";
+  }
+
+  function extractTime(val: unknown): string {
+    if (!val) return "-";
+    if (typeof val === "string") return val;
+    if (typeof val === "object" && val !== null) {
+      const obj = val as Record<string, unknown>;
+      return String(obj.time || obj.scheduled || obj.actual || obj.timestamp || JSON.stringify(obj));
+    }
+    return String(val);
   }
 
   function getArrival(train: StationTrain): string {
-    return String(train.arrival || train.scheduled_arrival || "-");
+    return extractTime(train.arrival || train.scheduled_arrival);
   }
 
   function getDeparture(train: StationTrain): string {
-    return String(train.departure || train.scheduled_departure || "-");
+    return extractTime(train.departure || train.scheduled_departure);
   }
 
   function getDelay(train: StationTrain): number {
@@ -97,7 +109,9 @@ export default function StationLivePage() {
   }
 
   function getPlatform(train: StationTrain): number | string {
-    return train.platform || train.plat || "-";
+    const p = train.platform || train.plat;
+    if (typeof p === "object" && p !== null) return JSON.stringify(p);
+    return p || "-";
   }
 
   return (
