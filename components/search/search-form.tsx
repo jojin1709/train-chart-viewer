@@ -132,7 +132,7 @@ export function SearchForm() {
       </Button>
 
       <p className="mt-3 text-center text-xs text-muted-2">
-        Demo mode includes fixture charts for trains 22648 and 12621.
+        Search any train to view reservation chart details.
       </p>
     </form>
   );

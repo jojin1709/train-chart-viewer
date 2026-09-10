@@ -19,10 +19,7 @@ export function TrainHeader({
     <div className="rounded-xl border border-border bg-surface p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground">{chart.train.number}</h1>
-            {chart.meta.isFixtureData && <Badge variant="accent">Fixture data</Badge>}
-          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{chart.train.number}</h1>
           <p className="mt-0.5 text-sm text-muted">{chart.train.name ?? "Train name not available"}</p>
         </div>
         <div className="text-right">

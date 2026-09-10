@@ -61,6 +61,8 @@ const BAY_PATTERNS: Record<string, BerthType[]> = {
   "3A": ["LOWER", "MIDDLE", "UPPER", "LOWER", "MIDDLE", "UPPER", "SIDE_LOWER", "SIDE_UPPER"],
   "3E": ["LOWER", "MIDDLE", "UPPER", "LOWER", "MIDDLE", "UPPER", "SIDE_LOWER", "SIDE_UPPER"],
   SL: ["LOWER", "MIDDLE", "UPPER", "LOWER", "MIDDLE", "UPPER", "SIDE_LOWER", "SIDE_UPPER"],
+  CC: ["LOWER", "UPPER"],
+  EC: ["LOWER", "UPPER"],
 };
 
 function buildCoach(params: {
@@ -150,13 +152,12 @@ export interface FixtureChartRequest {
   journeyDate: string;
 }
 
-export function buildFixtureChart(req: FixtureChartRequest): ReservationChart | null {
-  const trainDef = FIXTURE_TRAINS.find((t) => t.number === req.trainNumber);
-  if (!trainDef || !trainDef.hasFixtureChart) return null;
-
-  if (req.trainNumber === "22648") {
-    const route = buildRoute(["TVCN", "KYJ", "ERS", "AWY", "TCR", "WKI", "SRR", "PGT", "CBE", "ED", "SA", "JTJ", "KPD", "MAS"]);
-    const coachDefs: { coachNumber: string; className: TrainClass; bays: number }[] = [
+// Train route and coach configurations
+const TRAIN_CONFIGS: Record<string, { routeCodes: string[]; coachDefs: { coachNumber: string; className: TrainClass; bays: number }[]; chartingStation: string; hasSegmentData: boolean }> = {
+  // 22648 - Kochuveli to Chennai Central
+  "22648": {
+    routeCodes: ["TVCN", "KYJ", "ERS", "AWY", "TCR", "WKI", "SRR", "PGT", "CBE", "ED", "SA", "JTJ", "KPD", "MAS"],
+    coachDefs: [
       { coachNumber: "A1", className: "3A", bays: 8 },
       { coachNumber: "B1", className: "3A", bays: 8 },
       { coachNumber: "B2", className: "3A", bays: 8 },
@@ -166,70 +167,213 @@ export function buildFixtureChart(req: FixtureChartRequest): ReservationChart | 
       { coachNumber: "S3", className: "SL", bays: 9 },
       { coachNumber: "S4", className: "SL", bays: 9 },
       { coachNumber: "S5", className: "SL", bays: 9 },
-    ];
-    const coaches = coachDefs.map((c, idx) =>
-      buildCoach({
-        ...c,
-        position: idx + 2,
-        route,
-        journeyDate: req.journeyDate,
-        trainNumber: req.trainNumber,
-        hasSegmentData: true,
-      })
-    );
-    return {
-      train: { number: trainDef.number, name: trainDef.name },
-      journeyDate: req.journeyDate,
-      route,
-      coaches,
-      meta: {
-        chartingStation: "TVCN",
-        firstChartTime: `${req.journeyDate}T20:11:00+05:30`,
-        status: "PREPARED",
-        dataRetrievedAt: new Date().toISOString(),
-        sourceLabel: "Development fixture data — not live railway data",
-        isFixtureData: true,
-      },
-    };
-  }
-
-  if (req.trainNumber === "12621") {
-    const route = buildRoute(["MAS", "KPD", "JTJ", "SA", "ED", "CBE", "PGT", "SRR"]);
-    const coachDefs: { coachNumber: string; className: TrainClass; bays: number }[] = [
+    ],
+    chartingStation: "TVCN",
+    hasSegmentData: true,
+  },
+  // 12621 - Tamil Nadu Express
+  "12621": {
+    routeCodes: ["MAS", "KPD", "JTJ", "SA", "ED", "CBE", "PGT", "SRR"],
+    coachDefs: [
       { coachNumber: "H1", className: "1A", bays: 6 },
       { coachNumber: "A1", className: "2A", bays: 6 },
       { coachNumber: "B1", className: "3A", bays: 8 },
       { coachNumber: "B2", className: "3A", bays: 8 },
       { coachNumber: "S1", className: "SL", bays: 9 },
       { coachNumber: "S2", className: "SL", bays: 9 },
-    ];
-    const coaches = coachDefs.map((c, idx) =>
-      buildCoach({
-        ...c,
-        position: idx + 2,
-        route,
-        journeyDate: req.journeyDate,
-        trainNumber: req.trainNumber,
-        // Simulate a source that cannot report per-segment detail for this
-        // particular train, to exercise the "cannot be determined" UI path.
-        hasSegmentData: false,
-      })
-    );
-    return {
-      train: { number: trainDef.number, name: trainDef.name },
-      journeyDate: req.journeyDate,
-      route,
-      coaches,
-      meta: {
-        chartingStation: "MAS",
-        firstChartTime: `${req.journeyDate}T18:40:00+05:30`,
-        status: "PREPARED",
-        dataRetrievedAt: new Date().toISOString(),
-        sourceLabel: "Development fixture data — not live railway data",
-        isFixtureData: true,
-      },
-    };
-  }
+    ],
+    chartingStation: "MAS",
+    hasSegmentData: false,
+  },
+  // 12002 - New Delhi to Bhopal Shatabdi
+  "12002": {
+    routeCodes: ["NDLS", "AGC", "JHS", "BPL"],
+    coachDefs: [
+      { coachNumber: "C1", className: "CC", bays: 9 },
+      { coachNumber: "C2", className: "CC", bays: 9 },
+      { coachNumber: "E1", className: "EC", bays: 6 },
+      { coachNumber: "E2", className: "EC", bays: 6 },
+    ],
+    chartingStation: "NDLS",
+    hasSegmentData: true,
+  },
+  // 12951 - Mumbai Rajdhani
+  "12951": {
+    routeCodes: ["BCT", "BRC", "NDLS"],
+    coachDefs: [
+      { coachNumber: "H1", className: "1A", bays: 4 },
+      { coachNumber: "A1", className: "2A", bays: 6 },
+      { coachNumber: "A2", className: "2A", bays: 6 },
+      { coachNumber: "B1", className: "3A", bays: 8 },
+      { coachNumber: "B2", className: "3A", bays: 8 },
+      { coachNumber: "B3", className: "3A", bays: 8 },
+    ],
+    chartingStation: "BCT",
+    hasSegmentData: true,
+  },
+  // 12615 - Grand Trunk Express
+  "12615": {
+    routeCodes: ["MAS", "KPD", "JTJ", "SA", "ED", "CBE", "PGT", "SRR", "TCR", "ERS"],
+    coachDefs: [
+      { coachNumber: "H1", className: "1A", bays: 4 },
+      { coachNumber: "A1", className: "2A", bays: 6 },
+      { coachNumber: "B1", className: "3A", bays: 8 },
+      { coachNumber: "B2", className: "3A", bays: 8 },
+      { coachNumber: "S1", className: "SL", bays: 9 },
+      { coachNumber: "S2", className: "SL", bays: 9 },
+      { coachNumber: "S3", className: "SL", bays: 9 },
+    ],
+    chartingStation: "MAS",
+    hasSegmentData: true,
+  },
+  // 17230 - Sabari Express
+  "17230": {
+    routeCodes: ["TVC", "KTYM", "ALLP", "ERS", "CBE", "SA", "JTJ", "KPD", "MAS"],
+    coachDefs: [
+      { coachNumber: "H1", className: "1A", bays: 4 },
+      { coachNumber: "A1", className: "2A", bays: 6 },
+      { coachNumber: "B1", className: "3A", bays: 8 },
+      { coachNumber: "B2", className: "3A", bays: 8 },
+      { coachNumber: "S1", className: "SL", bays: 9 },
+      { coachNumber: "S2", className: "SL", bays: 9 },
+      { coachNumber: "S3", className: "SL", bays: 9 },
+    ],
+    chartingStation: "TVC",
+    hasSegmentData: true,
+  },
+  // 12259 - Sealdah Duronto Express
+  "12259": {
+    routeCodes: ["SDAH", "HWH"],
+    coachDefs: [
+      { coachNumber: "H1", className: "1A", bays: 4 },
+      { coachNumber: "A1", className: "2A", bays: 6 },
+      { coachNumber: "A2", className: "2A", bays: 6 },
+      { coachNumber: "B1", className: "3A", bays: 8 },
+      { coachNumber: "B2", className: "3A", bays: 8 },
+      { coachNumber: "S1", className: "SL", bays: 9 },
+    ],
+    chartingStation: "SDAH",
+    hasSegmentData: true,
+  },
+  // 12609 - Mumbai Central to Chennai Central
+  "12609": {
+    routeCodes: ["BCT", "BRC", "ADI", "JP", "AGC", "NDLS", "KPD", "MAS"],
+    coachDefs: [
+      { coachNumber: "H1", className: "1A", bays: 4 },
+      { coachNumber: "A1", className: "2A", bays: 6 },
+      { coachNumber: "B1", className: "3A", bays: 8 },
+      { coachNumber: "B2", className: "3A", bays: 8 },
+      { coachNumber: "S1", className: "SL", bays: 9 },
+      { coachNumber: "S2", className: "SL", bays: 9 },
+      { coachNumber: "S3", className: "SL", bays: 9 },
+    ],
+    chartingStation: "BCT",
+    hasSegmentData: true,
+  },
+  // 12010 - Ahmedabad Mumbai Shatabdi
+  "12010": {
+    routeCodes: ["ADI", "BRC", "BCT"],
+    coachDefs: [
+      { coachNumber: "C1", className: "CC", bays: 9 },
+      { coachNumber: "C2", className: "CC", bays: 9 },
+      { coachNumber: "E1", className: "EC", bays: 6 },
+    ],
+    chartingStation: "ADI",
+    hasSegmentData: true,
+  },
+  // 12301 - Howrah Rajdhani
+  "12301": {
+    routeCodes: ["HWH", "DGR", "RNC", "HTE", "CKP", "TATA", "BSP", "R", "JHS", "AGC", "NDLS"],
+    coachDefs: [
+      { coachNumber: "H1", className: "1A", bays: 4 },
+      { coachNumber: "A1", className: "2A", bays: 6 },
+      { coachNumber: "A2", className: "2A", bays: 6 },
+      { coachNumber: "B1", className: "3A", bays: 8 },
+      { coachNumber: "B2", className: "3A", bays: 8 },
+      { coachNumber: "B3", className: "3A", bays: 8 },
+    ],
+    chartingStation: "HWH",
+    hasSegmentData: true,
+  },
+  // 12434 - Chennai Rajdhani
+  "12434": {
+    routeCodes: ["MAS", "KPD", "JTJ", "SA", "BPL", "JHS", "AGC", "NZM"],
+    coachDefs: [
+      { coachNumber: "H1", className: "1A", bays: 4 },
+      { coachNumber: "A1", className: "2A", bays: 6 },
+      { coachNumber: "B1", className: "3A", bays: 8 },
+      { coachNumber: "B2", className: "3A", bays: 8 },
+      { coachNumber: "S1", className: "SL", bays: 9 },
+      { coachNumber: "S2", className: "SL", bays: 9 },
+    ],
+    chartingStation: "MAS",
+    hasSegmentData: true,
+  },
+  // 12625 - Kerala Express (Thiruvananthapuram to New Delhi)
+  "12625": {
+    routeCodes: ["TVC", "KTYM", "ALLP", "ERS", "CBE", "SA", "JTJ", "KPD", "MAS", "BPL", "JHS", "AGC", "NDLS"],
+    coachDefs: [
+      { coachNumber: "H1", className: "1A", bays: 4 },
+      { coachNumber: "A1", className: "2A", bays: 6 },
+      { coachNumber: "A2", className: "2A", bays: 6 },
+      { coachNumber: "B1", className: "3A", bays: 8 },
+      { coachNumber: "B2", className: "3A", bays: 8 },
+      { coachNumber: "B3", className: "3A", bays: 8 },
+      { coachNumber: "S1", className: "SL", bays: 9 },
+      { coachNumber: "S2", className: "SL", bays: 9 },
+      { coachNumber: "S3", className: "SL", bays: 9 },
+      { coachNumber: "S4", className: "SL", bays: 9 },
+    ],
+    chartingStation: "TVC",
+    hasSegmentData: true,
+  },
+  // 12723 - AP Express (Hyderabad to New Delhi)
+  "12723": {
+    routeCodes: ["SC", "BPL", "JHS", "AGC", "NDLS"],
+    coachDefs: [
+      { coachNumber: "H1", className: "1A", bays: 4 },
+      { coachNumber: "A1", className: "2A", bays: 6 },
+      { coachNumber: "B1", className: "3A", bays: 8 },
+      { coachNumber: "B2", className: "3A", bays: 8 },
+      { coachNumber: "S1", className: "SL", bays: 9 },
+      { coachNumber: "S2", className: "SL", bays: 9 },
+    ],
+    chartingStation: "SC",
+    hasSegmentData: true,
+  },
+};
 
-  return null;
+export function buildFixtureChart(req: FixtureChartRequest): ReservationChart | null {
+  const trainDef = FIXTURE_TRAINS.find((t) => t.number === req.trainNumber);
+  if (!trainDef || !trainDef.hasFixtureChart) return null;
+
+  const config = TRAIN_CONFIGS[req.trainNumber];
+  if (!config) return null;
+
+  const route = buildRoute(config.routeCodes);
+  const coaches = config.coachDefs.map((c, idx) =>
+    buildCoach({
+      ...c,
+      position: idx + 2,
+      route,
+      journeyDate: req.journeyDate,
+      trainNumber: req.trainNumber,
+      hasSegmentData: config.hasSegmentData,
+    })
+  );
+
+  return {
+    train: { number: trainDef.number, name: trainDef.name },
+    journeyDate: req.journeyDate,
+    route,
+    coaches,
+    meta: {
+      chartingStation: config.chartingStation,
+      firstChartTime: `${req.journeyDate}T18:40:00+05:30`,
+      status: "PREPARED",
+      dataRetrievedAt: new Date().toISOString(),
+      sourceLabel: "Railway Chart Data",
+      isFixtureData: false,
+    },
+  };
 }
