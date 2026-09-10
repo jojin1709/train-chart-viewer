@@ -5,10 +5,14 @@ import { Search, Loader2, MapPin, AlertCircle, Train } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface StationTrain {
+  [key: string]: unknown;
   train_number?: string;
   train_no?: string;
+  number?: string;
+  no?: string;
   train_name?: string;
   name?: string;
+  title?: string;
   arrival?: string | { time?: string; scheduled?: string; actual?: string };
   scheduled_arrival?: string | { time?: string; scheduled?: string };
   departure?: string | { time?: string; scheduled?: string; actual?: string };
@@ -76,13 +80,21 @@ export default function StationLivePage() {
   }
 
   function getTrainNumber(train: StationTrain): string {
-    return String(train.train_number || train.train_no || "");
+    // Try multiple possible field names
+    const val = train.train_number || train.train_no || train.number || train.no || train.id || train.trainNo;
+    if (typeof val === "string") return val;
+    if (typeof val === "object" && val !== null) return JSON.stringify(val);
+    return "";
   }
 
   function getTrainName(train: StationTrain): string {
-    const name = train.train_name || train.name;
+    // Try multiple possible field names
+    const name = train.train_name || train.name || train.title || train.trainName;
     if (typeof name === "string") return name;
-    if (typeof name === "object" && name !== null) return JSON.stringify(name);
+    if (typeof name === "object" && name !== null) {
+      const obj = name as Record<string, unknown>;
+      return String(obj.name || obj.title || obj.text || JSON.stringify(obj));
+    }
     return "";
   }
 
