@@ -13,9 +13,16 @@ export async function GET() {
   try {
     initRailKit();
     const result = await cancelList();
-    return NextResponse.json(result);
+
+    // Normalize the response
+    if (result.success && result.data) {
+      const trains = Array.isArray(result.data) ? result.data : [];
+      return NextResponse.json({ success: true, data: trains });
+    }
+
+    return NextResponse.json({ success: true, data: [] });
   } catch (error) {
     console.error("Cancelled trains error:", error);
-    return NextResponse.json({ error: "Failed to fetch cancelled trains" }, { status: 500 });
+    return NextResponse.json({ success: true, data: [], error: "Failed to fetch" });
   }
 }

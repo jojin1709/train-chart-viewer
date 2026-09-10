@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { configure, getTrainInfo } from "railkit";
 
 export const runtime = "nodejs";
@@ -9,12 +9,12 @@ function initRailKit() {
   configure(key);
 }
 
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const q = searchParams.get("q");
 
   if (!q) {
-    return NextResponse.json({ error: "Query required" }, { status: 400 });
+    return NextResponse.json({ success: true, data: [] });
   }
 
   try {
@@ -24,14 +24,14 @@ export async function GET(req: NextRequest) {
     if (/^\d{5}$/.test(q)) {
       const result = await getTrainInfo(q);
       if (result.success && result.data) {
+        const train = result.data;
         return NextResponse.json({
           success: true,
-          data: [{ number: result.data.train_number, name: result.data.train_name }],
+          data: [{ number: train.train_number, name: train.train_name }],
         });
       }
     }
 
-    // Search by name - use getTrainInfo as fallback
     return NextResponse.json({ success: true, data: [] });
   } catch (error) {
     console.error("Train search error:", error);
