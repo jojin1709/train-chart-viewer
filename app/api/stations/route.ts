@@ -11,27 +11,43 @@ function initRailKit() {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const q = searchParams.get("q");
+  const q = searchParams.get("q") || "";
 
   if (!q || q.length < 2) {
-    return NextResponse.json({ success: true, data: [] });
+    return NextResponse.json({ stations: [] });
   }
 
   try {
     initRailKit();
     const result = await stationsByName(q);
-    if (result.success && result.data?.stations) {
-      return NextResponse.json({
-        success: true,
-        data: result.data.stations.map((s: { code: string; name: string }) => ({
-          code: s.code,
-          name: s.name,
-        })),
-      });
+
+    if (result.success && result.data) {
+      const stationsData = result.data;
+
+      // Handle different response formats
+      let stations: { code: string; name: string }[] = [];
+
+      if (Array.isArray(stationsData)) {
+        stations = stationsData.map((s: Record<string, unknown>) => ({
+          code: String(s.code || s.station_code || ""),
+          name: String(s.name || s.station_name || ""),
+        }));
+      } else if (typeof stationsData === "object" && stationsData !== null) {
+        const obj = stationsData as Record<string, unknown>;
+        if (Array.isArray(obj.stations)) {
+          stations = obj.stations.map((s: Record<string, unknown>) => ({
+            code: String(s.code || s.station_code || ""),
+            name: String(s.name || s.station_name || ""),
+          }));
+        }
+      }
+
+      return NextResponse.json({ stations });
     }
-    return NextResponse.json({ success: true, data: [] });
+
+    return NextResponse.json({ stations: [] });
   } catch (error) {
     console.error("Station search error:", error);
-    return NextResponse.json({ success: true, data: [] });
+    return NextResponse.json({ stations: [] });
   }
 }

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Search } from "lucide-react";
+import { AlertCircle, Search, Loader2 } from "lucide-react";
 import { AsyncCombobox, type ComboOption } from "./async-combobox";
 import { Button } from "@/components/ui/button";
 import { todayISO } from "@/lib/utils";
@@ -27,23 +27,33 @@ function pushRecentStation(opt: ComboOption) {
 }
 
 async function fetchTrains(query: string): Promise<ComboOption[]> {
-  const res = await fetch(`/api/trains?q=${encodeURIComponent(query)}`);
-  if (!res.ok) return [];
-  const data = await res.json();
-  return (data.trains ?? []).map((t: { number: string; name: string | null }) => ({
-    value: t.number,
-    label: t.name ?? "Name not available",
-  }));
+  try {
+    const res = await fetch(`/api/trains?q=${encodeURIComponent(query)}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    const trains = data.trains || [];
+    return trains.map((t: { number: string; name: string }) => ({
+      value: t.number,
+      label: t.name || "Train " + t.number,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 async function fetchStations(query: string): Promise<ComboOption[]> {
-  const res = await fetch(`/api/stations?q=${encodeURIComponent(query)}`);
-  if (!res.ok) return [];
-  const data = await res.json();
-  return (data.stations ?? []).map((s: { code: string; name: string }) => ({
-    value: s.code,
-    label: s.name,
-  }));
+  try {
+    const res = await fetch(`/api/stations?q=${encodeURIComponent(query)}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    const stations = data.stations || [];
+    return stations.map((s: { code: string; name: string }) => ({
+      value: s.code,
+      label: s.name,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export function SearchForm() {
@@ -54,6 +64,35 @@ export function SearchForm() {
   const [to, setTo] = React.useState<ComboOption | null>(null);
   const [recent, setRecent] = React.useState<ComboOption[]>(() => loadRecentStations());
   const [error, setError] = React.useState<string | null>(null);
+  const [loadingStations, setLoadingStations] = React.useState(false);
+
+  // When train is selected, fetch its route and auto-fill from/to
+  const handleTrainSelect = React.useCallback(async (opt: ComboOption | null) => {
+    setTrain(opt);
+    setFrom(null);
+    setTo(null);
+
+    if (!opt) return;
+
+    // Fetch train info to get route
+    try {
+      setLoadingStations(true);
+      const res = await fetch(`/api/chart?train=${opt.value}&date=${date}`);
+      const data = await res.json();
+
+      if (data.success && data.data?.route) {
+        const route = data.data.route;
+        if (route.length >= 2) {
+          setFrom({ value: route[0].code, label: route[0].name || route[0].code });
+          setTo({ value: route[route.length - 1].code, label: route[route.length - 1].name || route[route.length - 1].code });
+        }
+      }
+    } catch {
+      // Ignore errors, user can manually select stations
+    } finally {
+      setLoadingStations(false);
+    }
+  }, [date]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -82,7 +121,7 @@ export function SearchForm() {
         <label htmlFor="train-input" className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-muted-2">
           Train
         </label>
-        <TrainInput id="train-input" value={train} onChange={setTrain} />
+        <TrainInput id="train-input" value={train} onChange={handleTrainSelect} />
       </div>
 
       <div className="mt-4">
@@ -99,24 +138,40 @@ export function SearchForm() {
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <AsyncCombobox
-          id="from-station"
-          label="From"
-          placeholder="Select boarding station"
-          value={from}
-          onChange={setFrom}
-          fetchOptions={fetchStations}
-          recentOptions={recent}
-        />
-        <AsyncCombobox
-          id="to-station"
-          label="To"
-          placeholder="Select destination station"
-          value={to}
-          onChange={setTo}
-          fetchOptions={fetchStations}
-          recentOptions={recent}
-        />
+        <div className="relative">
+          <AsyncCombobox
+            id="from-station"
+            label="From"
+            placeholder={loadingStations ? "Loading stations..." : "Select boarding station"}
+            value={from}
+            onChange={setFrom}
+            fetchOptions={fetchStations}
+            recentOptions={recent}
+            disabled={loadingStations}
+          />
+          {loadingStations && (
+            <div className="absolute right-3 top-8">
+              <Loader2 size={14} className="animate-spin text-muted-2" />
+            </div>
+          )}
+        </div>
+        <div className="relative">
+          <AsyncCombobox
+            id="to-station"
+            label="To"
+            placeholder={loadingStations ? "Loading stations..." : "Select destination station"}
+            value={to}
+            onChange={setTo}
+            fetchOptions={fetchStations}
+            recentOptions={recent}
+            disabled={loadingStations}
+          />
+          {loadingStations && (
+            <div className="absolute right-3 top-8">
+              <Loader2 size={14} className="animate-spin text-muted-2" />
+            </div>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -151,7 +206,7 @@ function TrainInput({
     <AsyncCombobox
       id={id}
       label=""
-      placeholder="Train number or name (e.g. 22648)"
+      placeholder="Train number or name (e.g. 12621)"
       value={value}
       onChange={onChange}
       fetchOptions={fetchTrains}
