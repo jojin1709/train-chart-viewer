@@ -21,27 +21,11 @@ export async function GET(req: NextRequest) {
     initRailKit();
     const result = await stationsByName(q);
 
-    if (result.success && result.data) {
-      const stationsData = result.data;
-
-      // Handle different response formats
-      let stations: { code: string; name: string }[] = [];
-
-      if (Array.isArray(stationsData)) {
-        stations = stationsData.map((s: Record<string, unknown>) => ({
-          code: String(s.code || s.station_code || ""),
-          name: String(s.name || s.station_name || ""),
-        }));
-      } else if (typeof stationsData === "object" && stationsData !== null) {
-        const obj = stationsData as Record<string, unknown>;
-        if (Array.isArray(obj.stations)) {
-          stations = obj.stations.map((s: Record<string, unknown>) => ({
-            code: String(s.code || s.station_code || ""),
-            name: String(s.name || s.station_name || ""),
-          }));
-        }
-      }
-
+    if (result.success && result.data?.stations) {
+      const stations = result.data.stations.map((s: { code: string; name: string }) => ({
+        code: s.code,
+        name: s.name,
+      }));
       return NextResponse.json({ stations });
     }
 

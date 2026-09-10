@@ -23,11 +23,11 @@ export async function GET(req: NextRequest) {
     // If numeric, search by train number
     if (/^\d{3,6}$/.test(q)) {
       const result = await getTrainInfo(q);
-      if (result.success && result.data) {
-        const t = result.data as Record<string, unknown>;
-        const num = String(t.train_number || t.number || q);
-        const name = String(t.train_name || t.name || "");
-        return NextResponse.json({ trains: [{ number: num, name: name }] });
+      if (result.success && result.data?.trainInfo) {
+        const t = result.data.trainInfo;
+        return NextResponse.json({
+          trains: [{ number: t.train_no || q, name: t.train_name || "" }],
+        });
       }
       return NextResponse.json({ trains: [] });
     }
@@ -35,27 +35,11 @@ export async function GET(req: NextRequest) {
     // Search by name
     if (q.length >= 2) {
       const result = await trainsByName(q);
-      if (result.success && result.data) {
-        const trainsData = result.data;
-
-        // Handle different response formats
-        let trains: { number: string; name: string }[] = [];
-
-        if (Array.isArray(trainsData)) {
-          trains = trainsData.map((t: Record<string, unknown>) => ({
-            number: String(t.train_number || t.number || t.train_no || ""),
-            name: String(t.train_name || t.name || ""),
-          }));
-        } else if (typeof trainsData === "object" && trainsData !== null) {
-          const obj = trainsData as Record<string, unknown>;
-          if (Array.isArray(obj.trains)) {
-            trains = obj.trains.map((t: Record<string, unknown>) => ({
-              number: String(t.train_number || t.number || t.train_no || ""),
-              name: String(t.train_name || t.name || ""),
-            }));
-          }
-        }
-
+      if (result.success && result.data?.trains) {
+        const trains = result.data.trains.map((t: { trainNo: string; trainName: string }) => ({
+          number: t.trainNo,
+          name: t.trainName,
+        }));
         return NextResponse.json({ trains });
       }
     }
