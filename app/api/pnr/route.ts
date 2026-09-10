@@ -14,15 +14,21 @@ export async function GET(req: NextRequest) {
   const pnr = searchParams.get("pnr");
 
   if (!pnr || !/^\d{10}$/.test(pnr)) {
-    return NextResponse.json({ error: "PNR must be 10 digits" }, { status: 400 });
+    return NextResponse.json({ success: false, error: "PNR must be 10 digits" }, { status: 400 });
   }
 
   try {
     initRailKit();
     const result = await checkPNRStatus(pnr);
+
+    // SDK returns { success: boolean, data: {...}, error?: string }
+    // Pass through directly
     return NextResponse.json(result);
   } catch (error) {
     console.error("PNR check error:", error);
-    return NextResponse.json({ error: "Failed to check PNR" }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: String(error) },
+      { status: 500 }
+    );
   }
 }
