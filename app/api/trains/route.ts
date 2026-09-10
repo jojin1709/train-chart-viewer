@@ -1,22 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchQuerySchema } from "@/lib/validation/schemas";
-import { getProvider } from "@/lib/providers";
+import { configure, getTrainInfo } from "railkit";
 
 export const runtime = "nodejs";
 
+function initRailKit() {
+  const key = process.env.RAILKIT_API_KEY;
+  if (!key) throw new Error("RAILKIT_API_KEY not set");
+  configure(key);
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const parsed = searchQuerySchema.safeParse(searchParams.get("q") ?? "");
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid query" }, { status: 400 });
+  const q = searchParams.get("q");
+
+  if (!q) {
+    return NextResponse.json({ error: "Query required" }, { status: 400 });
   }
 
-  const provider = getProvider();
-  const result = await provider.getTrainSuggestions(parsed.data);
+  try {
+    initRailKit();
 
-  if (!result.ok) {
-    return NextResponse.json({ error: result.message }, { status: 502 });
+    // If numeric 5 digits, search by number
+    if (/^\d{5}$/.test(q)) {
+      const result = await getTrainInfo(q);
+      if (result.success && result.data) {
+        return NextResponse.json({
+          success: true,
+          data: [{ number: result.data.train_number, name: result.data.train_name }],
+        });
+      }
+    }
+
+    // Search by name - use getTrainInfo as fallback
+    return NextResponse.json({ success: true, data: [] });
+  } catch (error) {
+    console.error("Train search error:", error);
+    return NextResponse.json({ success: true, data: [] });
   }
-
-  return NextResponse.json({ trains: result.data, isFixtureData: provider.isFixtureProvider });
 }

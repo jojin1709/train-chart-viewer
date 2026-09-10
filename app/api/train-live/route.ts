@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { configure, trackTrain } from "railkit";
 
 export const runtime = "nodejs";
 
-const RAILKIT_BASE_URL = "https://api.railkit.in/api/v1";
-
-function getApiKey(): string {
+function initRailKit() {
   const key = process.env.RAILKIT_API_KEY;
-  if (!key) throw new Error("RAILKIT_API_KEY is not configured");
-  return key;
+  if (!key) throw new Error("RAILKIT_API_KEY not set");
+  configure(key);
 }
 
 export async function GET(req: NextRequest) {
@@ -16,43 +15,18 @@ export async function GET(req: NextRequest) {
   const date = searchParams.get("date");
 
   if (!trainNumber || !/^\d{5}$/.test(trainNumber)) {
-    return NextResponse.json(
-      { error: "Train number must be exactly 5 digits" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Train number must be 5 digits" }, { status: 400 });
   }
-
   if (!date) {
-    return NextResponse.json(
-      { error: "Date is required (DD-MM-YYYY format)" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Date required (DD-MM-YYYY)" }, { status: 400 });
   }
 
   try {
-    const apiKey = getApiKey();
-    const response = await fetch(`${RAILKIT_BASE_URL}/trains/${trainNumber}/live/${date}`, {
-      headers: {
-        "x-api-key": apiKey,
-        accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return NextResponse.json(
-        { error: `RailKit API error: ${response.status}`, details: errorText },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
-    return NextResponse.json(data);
+    initRailKit();
+    const result = await trackTrain(trainNumber, date);
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Live tracking error:", error);
-    return NextResponse.json(
-      { error: "Failed to track train" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to track train" }, { status: 500 });
   }
 }

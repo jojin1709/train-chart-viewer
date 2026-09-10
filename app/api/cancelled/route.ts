@@ -1,40 +1,21 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { configure, cancelList } from "railkit";
 
 export const runtime = "nodejs";
 
-const RAILKIT_BASE_URL = "https://api.railkit.in/api/v1";
-
-function getApiKey(): string {
+function initRailKit() {
   const key = process.env.RAILKIT_API_KEY;
-  if (!key) throw new Error("RAILKIT_API_KEY is not configured");
-  return key;
+  if (!key) throw new Error("RAILKIT_API_KEY not set");
+  configure(key);
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const apiKey = getApiKey();
-    const response = await fetch(`${RAILKIT_BASE_URL}/trains/cancelled`, {
-      headers: {
-        "x-api-key": apiKey,
-        accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return NextResponse.json(
-        { error: `RailKit API error: ${response.status}`, details: errorText },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
-    return NextResponse.json(data);
+    initRailKit();
+    const result = await cancelList();
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Cancelled trains error:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch cancelled trains" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch cancelled trains" }, { status: 500 });
   }
 }
