@@ -19,6 +19,12 @@ export const FIXTURE_STATIONS: Station[] = [
   { code: "PUNE", name: "Pune Junction", routeIndex: 0, distanceKm: 0 },
   { code: "JP", name: "Jaipur Junction", routeIndex: 0, distanceKm: 0 },
   { code: "BPL", name: "Bhopal Junction", routeIndex: 0, distanceKm: 0 },
+  { code: "AGC", name: "Agra Cantt", routeIndex: 0, distanceKm: 0 },
+  { code: "JHS", name: "Jhansi Junction", routeIndex: 0, distanceKm: 0 },
+  { code: "BRC", name: "Vadodara Junction", routeIndex: 0, distanceKm: 0 },
+  { code: "NZM", name: "Hazrat Nizamuddin", routeIndex: 0, distanceKm: 0 },
+  { code: "DLI", name: "Old Delhi Junction", routeIndex: 0, distanceKm: 0 },
+  { code: "SDAH", name: "Sealdah", routeIndex: 0, distanceKm: 0 },
   
   // Kerala stations
   { code: "TVC", name: "Thiruvananthapuram Central", routeIndex: 0, distanceKm: 0 },
@@ -44,7 +50,6 @@ export const FIXTURE_STATIONS: Station[] = [
   { code: "TPJ", name: "Tiruchirappalli Junction", routeIndex: 0, distanceKm: 0 },
   { code: "TEN", name: "Tirunelveli Junction", routeIndex: 0, distanceKm: 0 },
   { code: "MS", name: "Chennai Egmore", routeIndex: 0, distanceKm: 0 },
-  { code: "CUP", name: "Cuddalore Port", routeIndex: 0, distanceKm: 0 },
   
   // Karnataka stations
   { code: "BNC", name: "Bangalore Cantonment", routeIndex: 0, distanceKm: 0 },
@@ -57,24 +62,13 @@ export const FIXTURE_STATIONS: Station[] = [
   { code: "BZA", name: "Vijayawada Junction", routeIndex: 0, distanceKm: 0 },
   { code: "GNT", name: "Guntur Junction", routeIndex: 0, distanceKm: 0 },
   { code: "TPTY", name: "Tirupati", routeIndex: 0, distanceKm: 0 },
-  { code: "KYM", name: "Kadiri", routeIndex: 0, distanceKm: 0 },
   
   // Maharashtra stations
   { code: "CSMT", name: "Mumbai CST", routeIndex: 0, distanceKm: 0 },
   { code: "LTT", name: "Lokmanya Tilak Terminus", routeIndex: 0, distanceKm: 0 },
   { code: "NGP", name: "Nagpur Junction", routeIndex: 0, distanceKm: 0 },
-  { code: "JN", name: "Jalna", routeIndex: 0, distanceKm: 0 },
-  { code: "MRU", name: "Manmad Junction", routeIndex: 0, distanceKm: 0 },
-  
-  // Delhi stations
-  { code: "NZM", name: "Hazrat Nizamuddin", routeIndex: 0, distanceKm: 0 },
-  { code: "DLI", name: "Old Delhi Junction", routeIndex: 0, distanceKm: 0 },
-  { code: "ANVT", name: "Anand Vihar Terminal", routeIndex: 0, distanceKm: 0 },
-  { code: "DEE", name: "Delhi Sarai Rohilla", routeIndex: 0, distanceKm: 0 },
   
   // Uttar Pradesh stations
-  { code: "AGC", name: "Agra Cantt", routeIndex: 0, distanceKm: 0 },
-  { code: "JHS", name: "Jhansi Junction", routeIndex: 0, distanceKm: 0 },
   { code: "LKO", name: "Lucknow Charbagh", routeIndex: 0, distanceKm: 0 },
   { code: "KOAA", name: "Kolkata Chitpur", routeIndex: 0, distanceKm: 0 },
   { code: "CNB", name: "Kanpur Central", routeIndex: 0, distanceKm: 0 },
@@ -97,16 +91,18 @@ export const FIXTURE_STATIONS: Station[] = [
   { code: "GWL", name: "Gwalior Junction", routeIndex: 0, distanceKm: 0 },
   
   // Gujarat stations
-  { code: "BRC", name: "Vadodara Junction", routeIndex: 0, distanceKm: 0 },
   { code: "ST", name: "Surat", routeIndex: 0, distanceKm: 0 },
   { code: "RTM", name: "Ratlam Junction", routeIndex: 0, distanceKm: 0 },
   
   // West Bengal stations
-  { code: "SDAH", name: "Sealdah", routeIndex: 0, distanceKm: 0 },
   { code: "BWN", name: "Barddhaman Junction", routeIndex: 0, distanceKm: 0 },
   { code: "RNC", name: "Ranchi Junction", routeIndex: 0, distanceKm: 0 },
   { code: "HTE", name: "Hatia", routeIndex: 0, distanceKm: 0 },
   { code: "TATA", name: "Tatanagar Junction", routeIndex: 0, distanceKm: 0 },
+  { code: "DGR", name: "Durgapur", routeIndex: 0, distanceKm: 0 },
+  { code: "CKP", name: "Chakradharpur", routeIndex: 0, distanceKm: 0 },
+  { code: "BSP", name: "Bilaspur Junction", routeIndex: 0, distanceKm: 0 },
+  { code: "R", name: "Raipur Junction", routeIndex: 0, distanceKm: 0 },
 ];
 
 export function searchStationsFixture(query: string): Station[] {
