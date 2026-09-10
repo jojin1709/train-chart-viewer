@@ -1,29 +1,19 @@
 "use client";
 
 import * as React from "react";
-import { Search, Loader2, IndianRupee, AlertCircle } from "lucide-react";
+import { Search, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface FareData {
-  success: boolean;
-  data?: {
-    train_number: string;
-    from_station: { code: string; name: string };
-    to_station: { code: string; name: string };
-    date: string;
-    class: string;
-    quota: string;
-    fare_breakdown: {
-      base_fare: number;
-      reservation_charge: number;
-      superfast_charge: number;
-      catering_charge: number;
-      gst: number;
-      dynamic_fare: number;
-      total: number;
-    };
-  };
-  error?: string;
+interface FareInfo {
+  base_fare?: number;
+  reservation_charge?: number;
+  superfast_charge?: number;
+  catering_charge?: number;
+  gst?: number;
+  dynamic_fare?: number;
+  total?: number;
+  total_fare?: number;
+  fare?: number;
 }
 
 export default function FarePage() {
@@ -34,8 +24,9 @@ export default function FarePage() {
   const [cls, setCls] = React.useState("SL");
   const [quota, setQuota] = React.useState("GN");
   const [loading, setLoading] = React.useState(false);
-  const [data, setData] = React.useState<FareData | null>(null);
+  const [fareData, setFareData] = React.useState<FareInfo | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [fetched, setFetched] = React.useState(false);
 
   React.useEffect(() => {
     const today = new Date();
@@ -51,7 +42,7 @@ export default function FarePage() {
 
     setLoading(true);
     setError(null);
-    setData(null);
+    setFareData(null);
 
     try {
       const res = await fetch(
@@ -59,13 +50,26 @@ export default function FarePage() {
       );
       const result = await res.json();
 
-      if (!res.ok) {
-        setError(result.error || "Failed to lookup fare");
+      if (result.success !== false && result.data) {
+        const data = result.data;
+        // Handle different response formats
+        const fareInfo: FareInfo = {
+          base_fare: Number(data.base_fare || data.baseFare || 0),
+          reservation_charge: Number(data.reservation_charge || data.reservationCharge || 0),
+          superfast_charge: Number(data.superfast_charge || data.superfastCharge || 0),
+          catering_charge: Number(data.catering_charge || data.cateringCharge || 0),
+          gst: Number(data.gst || 0),
+          dynamic_fare: Number(data.dynamic_fare || data.dynamicFare || 0),
+          total: Number(data.total || data.total_fare || data.totalFare || data.fare || 0),
+        };
+        setFareData(fareInfo);
       } else {
-        setData(result);
+        setError(result.error || "Failed to fetch fare");
       }
+      setFetched(true);
     } catch {
       setError("Network error. Please try again.");
+      setFetched(true);
     } finally {
       setLoading(false);
     }
@@ -158,87 +162,66 @@ export default function FarePage() {
         {error && (
           <div className="mt-4 flex items-center gap-2 rounded-lg border border-danger/30 bg-danger-soft p-4 text-danger">
             <AlertCircle size={18} />
-            {error}
+            <span>{typeof error === "string" ? error : "An error occurred"}</span>
           </div>
         )}
 
-        {data?.data && (
+        {fetched && !error && fareData && (
           <div className="mt-6 space-y-4">
-            {/* Journey Info */}
-            <div className="rounded-lg border border-border bg-surface-2 p-4">
-              <h3 className="mb-2 font-semibold text-foreground">Journey Details</h3>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <span className="text-muted-2">Train:</span>
-                  <span className="ml-2 font-medium text-foreground">{data.data.train_number}</span>
-                </div>
-                <div>
-                  <span className="text-muted-2">Date:</span>
-                  <span className="ml-2 font-medium text-foreground">{data.data.date}</span>
-                </div>
-                <div>
-                  <span className="text-muted-2">From:</span>
-                  <span className="ml-2 font-medium text-foreground">{data.data.from_station.code}</span>
-                </div>
-                <div>
-                  <span className="text-muted-2">To:</span>
-                  <span className="ml-2 font-medium text-foreground">{data.data.to_station.code}</span>
-                </div>
-                <div>
-                  <span className="text-muted-2">Class:</span>
-                  <span className="ml-2 font-medium text-foreground">{data.data.class}</span>
-                </div>
-                <div>
-                  <span className="text-muted-2">Quota:</span>
-                  <span className="ml-2 font-medium text-foreground">{data.data.quota}</span>
-                </div>
-              </div>
-            </div>
-
             {/* Fare Breakdown */}
             <div className="rounded-lg border border-border bg-surface-2 p-4">
               <h3 className="mb-3 font-semibold text-foreground">Fare Breakdown</h3>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted">Base Fare</span>
-                  <span className="font-medium text-foreground">₹{data.data.fare_breakdown.base_fare}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted">Reservation Charge</span>
-                  <span className="font-medium text-foreground">₹{data.data.fare_breakdown.reservation_charge}</span>
-                </div>
-                {data.data.fare_breakdown.superfast_charge > 0 && (
+                {fareData.base_fare ? (
+                  <div className="flex justify-between">
+                    <span className="text-muted">Base Fare</span>
+                    <span className="font-medium text-foreground">₹{fareData.base_fare}</span>
+                  </div>
+                ) : null}
+                {fareData.reservation_charge ? (
+                  <div className="flex justify-between">
+                    <span className="text-muted">Reservation Charge</span>
+                    <span className="font-medium text-foreground">₹{fareData.reservation_charge}</span>
+                  </div>
+                ) : null}
+                {fareData.superfast_charge ? (
                   <div className="flex justify-between">
                     <span className="text-muted">Superfast Charge</span>
-                    <span className="font-medium text-foreground">₹{data.data.fare_breakdown.superfast_charge}</span>
+                    <span className="font-medium text-foreground">₹{fareData.superfast_charge}</span>
                   </div>
-                )}
-                {data.data.fare_breakdown.catering_charge > 0 && (
+                ) : null}
+                {fareData.catering_charge ? (
                   <div className="flex justify-between">
                     <span className="text-muted">Catering Charge</span>
-                    <span className="font-medium text-foreground">₹{data.data.fare_breakdown.catering_charge}</span>
+                    <span className="font-medium text-foreground">₹{fareData.catering_charge}</span>
                   </div>
-                )}
-                {data.data.fare_breakdown.gst > 0 && (
+                ) : null}
+                {fareData.gst ? (
                   <div className="flex justify-between">
                     <span className="text-muted">GST</span>
-                    <span className="font-medium text-foreground">₹{data.data.fare_breakdown.gst}</span>
+                    <span className="font-medium text-foreground">₹{fareData.gst}</span>
                   </div>
-                )}
-                {data.data.fare_breakdown.dynamic_fare > 0 && (
+                ) : null}
+                {fareData.dynamic_fare ? (
                   <div className="flex justify-between">
                     <span className="text-muted">Dynamic Fare</span>
-                    <span className="font-medium text-foreground">₹{data.data.fare_breakdown.dynamic_fare}</span>
+                    <span className="font-medium text-foreground">₹{fareData.dynamic_fare}</span>
                   </div>
-                )}
+                ) : null}
                 <div className="border-t border-border pt-2">
                   <div className="flex justify-between">
                     <span className="font-semibold text-foreground">Total Fare</span>
-                    <span className="text-xl font-bold text-accent">₹{data.data.fare_breakdown.total}</span>
+                    <span className="text-xl font-bold text-accent">₹{fareData.total}</span>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {fetched && !error && !fareData && (
+          <div className="mt-6 rounded-lg border border-border bg-surface-2 p-8 text-center">
+            <p className="text-muted">No fare data available</p>
           </div>
         )}
       </div>

@@ -15,11 +15,11 @@ export async function GET(req: NextRequest) {
   const hours = searchParams.get("hrs") || "2";
 
   if (!stationCode) {
-    return NextResponse.json({ error: "Station code required" }, { status: 400 });
+    return NextResponse.json({ success: false, error: "Station code required" }, { status: 400 });
   }
 
   if (!["2", "4", "8"].includes(hours)) {
-    return NextResponse.json({ error: "Hours must be 2, 4, or 8" }, { status: 400 });
+    return NextResponse.json({ success: false, error: "Hours must be 2, 4, or 8" }, { status: 400 });
   }
 
   try {
@@ -28,6 +28,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(result);
   } catch (error) {
     console.error("Station live error:", error);
-    return NextResponse.json({ error: "Failed to fetch station status" }, { status: 500 });
+    return NextResponse.json({ success: false, error: "Failed to fetch station status" }, { status: 500 });
   }
 }

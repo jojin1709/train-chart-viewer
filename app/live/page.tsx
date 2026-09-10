@@ -1,42 +1,43 @@
 "use client";
 
 import * as React from "react";
-import { Search, Loader2, MapPin, Clock, AlertCircle } from "lucide-react";
+import { Search, Loader2, MapPin, Clock, AlertCircle, Train } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface LiveTrainData {
-  success: boolean;
-  data?: {
-    train_number: string;
-    train_name: string;
-    date: string;
-    current_station: { code: string; name: string };
-    status: string;
-    delay: number;
-    speed: number;
-    route: {
-      station: { code: string; name: string };
-      arrival: string | null;
-      departure: string | null;
-      actual_arrival: string | null;
-      actual_departure: string | null;
-      delay: number;
-      platform: number | null;
-      status: string;
-    }[];
-  };
-  error?: string;
+interface RouteStop {
+  station?: { code: string; name: string };
+  station_code?: string;
+  station_name?: string;
+  arrival?: string;
+  departure?: string;
+  scheduled_arrival?: string;
+  scheduled_departure?: string;
+  actual_arrival?: string;
+  actual_departure?: string;
+  delay?: number;
+  platform?: number;
+  status?: string;
+}
+
+interface LiveTrainInfo {
+  train_number?: string;
+  train_name?: string;
+  date?: string;
+  current_station?: { code: string; name: string } | string;
+  status?: string;
+  delay?: number;
+  speed?: number;
+  route?: RouteStop[];
 }
 
 export default function LiveTrackingPage() {
   const [trainNumber, setTrainNumber] = React.useState("");
   const [date, setDate] = React.useState("");
   const [loading, setLoading] = React.useState(false);
-  const [data, setData] = React.useState<LiveTrainData | null>(null);
+  const [trainInfo, setTrainInfo] = React.useState<LiveTrainInfo | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    // Set default date to today in DD-MM-YYYY format
     const today = new Date();
     const formatted = `${String(today.getDate()).padStart(2, "0")}-${String(today.getMonth() + 1).padStart(2, "0")}-${today.getFullYear()}`;
     setDate(formatted);
@@ -44,28 +45,48 @@ export default function LiveTrackingPage() {
 
   async function handleTrack() {
     if (!trainNumber || trainNumber.length !== 5) {
-      setError("Train number must be exactly 5 digits");
+      setError("Train number must be 5 digits");
       return;
     }
 
     setLoading(true);
     setError(null);
-    setData(null);
+    setTrainInfo(null);
 
     try {
       const res = await fetch(`/api/train-live?train=${trainNumber}&date=${date}`);
       const result = await res.json();
 
-      if (!res.ok) {
-        setError(result.error || "Failed to track train");
+      if (result.success !== false && result.data) {
+        setTrainInfo(result.data);
       } else {
-        setData(result);
+        setError(result.error || "Train not found");
       }
     } catch {
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
+  }
+
+  function getStationCode(station: { code: string; name: string } | string | undefined): string {
+    if (!station) return "";
+    if (typeof station === "string") return station;
+    return station.code || "";
+  }
+
+  function getStationName(station: { code: string; name: string } | string | undefined): string {
+    if (!station) return "";
+    if (typeof station === "string") return "";
+    return station.name || "";
+  }
+
+  function getStopStation(stop: RouteStop): { code: string; name: string } {
+    if (stop.station) return stop.station;
+    return {
+      code: String(stop.station_code || ""),
+      name: String(stop.station_name || ""),
+    };
   }
 
   return (
@@ -101,27 +122,31 @@ export default function LiveTrackingPage() {
         {error && (
           <div className="mt-4 flex items-center gap-2 rounded-lg border border-danger/30 bg-danger-soft p-4 text-danger">
             <AlertCircle size={18} />
-            {error}
+            <span>{typeof error === "string" ? error : "An error occurred"}</span>
           </div>
         )}
 
-        {data?.data && (
+        {trainInfo && (
           <div className="mt-6 space-y-4">
             {/* Train Header */}
             <div className="rounded-lg border border-border bg-surface-2 p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-foreground">
-                    {data.data.train_number} - {data.data.train_name}
+                    {String(trainInfo.train_number || "")} - {String(trainInfo.train_name || "")}
                   </h2>
-                  <p className="text-sm text-muted">Date: {data.data.date}</p>
+                  <p className="text-sm text-muted">Date: {String(trainInfo.date || "")}</p>
                 </div>
                 <div className="text-right">
                   <div className="flex items-center gap-2">
                     <MapPin className="text-accent" size={18} />
-                    <span className="font-semibold text-foreground">{data.data.current_station.code}</span>
+                    <span className="font-semibold text-foreground">
+                      {getStationCode(trainInfo.current_station)}
+                    </span>
                   </div>
-                  <p className="text-sm text-muted">{data.data.current_station.name}</p>
+                  <p className="text-sm text-muted">
+                    {getStationName(trainInfo.current_station)}
+                  </p>
                 </div>
               </div>
             </div>
@@ -130,71 +155,87 @@ export default function LiveTrackingPage() {
             <div className="flex flex-wrap gap-4">
               <div className="flex-1 rounded-lg border border-border bg-surface-2 p-4 text-center">
                 <p className="text-xs text-muted-2">Status</p>
-                <p className={`text-lg font-bold ${data.data && data.data.delay > 0 ? "text-part" : "text-vacant"}`}>
-                  {data.data?.status}
+                <p className={`text-lg font-bold ${Number(trainInfo.delay || 0) > 0 ? "text-part" : "text-vacant"}`}>
+                  {String(trainInfo.status || "Unknown")}
                 </p>
               </div>
               <div className="flex-1 rounded-lg border border-border bg-surface-2 p-4 text-center">
                 <p className="text-xs text-muted-2">Delay</p>
-                <p className={`text-lg font-bold ${data.data && data.data.delay > 0 ? "text-part" : "text-vacant"}`}>
-                  {data.data && data.data.delay > 0 ? `${data.data.delay} min` : "On Time"}
+                <p className={`text-lg font-bold ${Number(trainInfo.delay || 0) > 0 ? "text-part" : "text-vacant"}`}>
+                  {Number(trainInfo.delay || 0) > 0 ? `${trainInfo.delay} min` : "On Time"}
                 </p>
               </div>
               <div className="flex-1 rounded-lg border border-border bg-surface-2 p-4 text-center">
                 <p className="text-xs text-muted-2">Speed</p>
-                <p className="text-lg font-bold text-foreground">{data.data?.speed} km/h</p>
+                <p className="text-lg font-bold text-foreground">{String(trainInfo.speed || 0)} km/h</p>
               </div>
             </div>
 
             {/* Route Timeline */}
-            <div className="rounded-lg border border-border bg-surface-2 p-4">
-              <h3 className="mb-4 font-semibold text-foreground">Route Timeline</h3>
-              <div className="space-y-2">
-                {data.data?.route.map((stop, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex items-center justify-between rounded-lg border p-3 ${
-                      stop.station.code === data.data?.current_station.code
-                        ? "border-accent bg-accent/10"
-                        : "border-border bg-surface"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
+            {trainInfo.route && trainInfo.route.length > 0 && (
+              <div className="rounded-lg border border-border bg-surface-2 p-4">
+                <h3 className="mb-4 font-semibold text-foreground">Route Timeline</h3>
+                <div className="space-y-2">
+                  {trainInfo.route.map((stop, idx) => {
+                    const station = getStopStation(stop);
+                    const currentCode = getStationCode(trainInfo.current_station);
+                    const isCurrent = station.code === currentCode;
+                    const delay = Number(stop.delay || 0);
+
+                    return (
                       <div
-                        className={`h-3 w-3 rounded-full ${
-                          stop.status === "Reached"
-                            ? "bg-vacant"
-                            : stop.status === "Approaching"
-                            ? "bg-part"
-                            : "bg-muted-2"
+                        key={idx}
+                        className={`flex items-center justify-between rounded-lg border p-3 ${
+                          isCurrent
+                            ? "border-accent bg-accent/10"
+                            : "border-border bg-surface"
                         }`}
-                      />
-                      <div>
-                        <p className="font-medium text-foreground">{stop.station.code}</p>
-                        <p className="text-xs text-muted">{stop.station.name}</p>
-                      </div>
-                    </div>
-                    <div className="text-right text-sm">
-                      <div className="flex items-center gap-2">
-                        <Clock size={14} className="text-muted-2" />
-                        <span className="text-muted-2">Sched:</span>
-                        <span className="font-medium text-foreground">{stop.departure || stop.arrival || "-"}</span>
-                      </div>
-                      {stop.actual_departure && (
-                        <div className="flex items-center gap-2">
-                          <Clock size={14} className="text-accent" />
-                          <span className="text-muted-2">Actual:</span>
-                          <span className="font-medium text-accent">{stop.actual_departure}</span>
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`h-3 w-3 rounded-full ${
+                              stop.status === "Reached" || stop.status === "departed"
+                                ? "bg-vacant"
+                                : stop.status === "Approaching" || stop.status === "arrived"
+                                ? "bg-part"
+                                : "bg-muted-2"
+                            }`}
+                          />
+                          <div>
+                            <p className="font-medium text-foreground">{station.code}</p>
+                            <p className="text-xs text-muted">{station.name}</p>
+                          </div>
                         </div>
-                      )}
-                      {stop.platform && (
-                        <p className="text-xs text-muted-2">Platform: {stop.platform}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                        <div className="text-right text-sm">
+                          <div className="flex items-center gap-2">
+                            <Clock size={14} className="text-muted-2" />
+                            <span className="text-muted-2">Sched:</span>
+                            <span className="font-medium text-foreground">
+                              {String(stop.departure || stop.scheduled_departure || stop.arrival || stop.scheduled_arrival || "-")}
+                            </span>
+                          </div>
+                          {(stop.actual_departure || stop.actual_arrival) && (
+                            <div className="flex items-center gap-2">
+                              <Clock size={14} className="text-accent" />
+                              <span className="text-muted-2">Actual:</span>
+                              <span className="font-medium text-accent">
+                                {String(stop.actual_departure || stop.actual_arrival)}
+                              </span>
+                            </div>
+                          )}
+                          {stop.platform && (
+                            <p className="text-xs text-muted-2">Platform: {String(stop.platform)}</p>
+                          )}
+                          {delay > 0 && (
+                            <p className="text-xs text-part">+{delay} min late</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>
