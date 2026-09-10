@@ -10,7 +10,7 @@ import { TrainHeader } from "@/components/chart/train-header";
 import { SummaryStats } from "@/components/chart/summary-stats";
 import { ChartPageSkeleton } from "@/components/chart/chart-skeleton";
 import { ChartErrorState } from "@/components/chart/chart-error";
-import { CoachTabs } from "@/components/coach/coach-tabs";
+import { CoachTabs, ClassTabs, classLabel } from "@/components/coach/coach-tabs";
 import { CoachMap } from "@/components/coach/coach-map";
 import { BerthTable } from "@/components/chart/berth-table";
 import { VacantFinder } from "@/components/chart/vacant-finder";
@@ -30,6 +30,7 @@ export default function ChartPage() {
   const { data: chart, isLoading, isError, error, refetch } = useChartQuery(trainNumber, date);
 
   const [activeCoach, setActiveCoach] = React.useState("all");
+  const [activeClass, setActiveClass] = React.useState("all");
   const [filterDrawerOpen, setFilterDrawerOpen] = React.useState(false);
   const [selectedBerth, setSelectedBerth] = React.useState<(BerthWithStatus & { className: string }) | null>(null);
 
@@ -46,6 +47,7 @@ export default function ChartPage() {
   const filteredBerths = React.useMemo(() => {
     return allBerths.filter((b) => {
       if (activeCoach !== "all" && b.coachNumber !== activeCoach) return false;
+      if (activeClass !== "all" && b.className !== activeClass) return false;
       if (filters.coach !== "all" && b.coachNumber !== filters.coach) return false;
       if (filters.className !== "all" && b.className !== filters.className) return false;
       if (filters.berthType !== "all" && b.berthType !== filters.berthType) return false;
@@ -65,7 +67,7 @@ export default function ChartPage() {
       }
       return true;
     });
-  }, [allBerths, activeCoach, filters]);
+  }, [allBerths, activeCoach, activeClass, filters]);
 
   const visibleBerthIds = React.useMemo(() => new Set(filteredBerths.map((b) => b.id)), [filteredBerths]);
 
@@ -81,8 +83,11 @@ export default function ChartPage() {
   }
 
   const classes = Array.from(new Set(chart.coaches.map((c) => c.className)));
-  const visibleCoaches =
-    activeCoach === "all" ? chart.coaches : chart.coaches.filter((c) => c.coachNumber === activeCoach);
+  const visibleCoaches = chart.coaches.filter((c) => {
+    if (activeCoach !== "all" && c.coachNumber !== activeCoach) return false;
+    if (activeClass !== "all" && c.className !== activeClass) return false;
+    return true;
+  });
   const segmentLabel = filters.from && filters.to ? `${filters.from} → ${filters.to}` : "Full route";
 
   return (
@@ -137,7 +142,8 @@ export default function ChartPage() {
             </div>
           </div>
 
-          <CoachTabs coaches={chart.coaches} activeCoach={activeCoach} onSelect={setActiveCoach} />
+          <ClassTabs coaches={chart.coaches} activeClass={activeClass} onSelect={setActiveClass} />
+      <CoachTabs coaches={chart.coaches} activeCoach={activeCoach} onSelect={setActiveCoach} />
 
           <div className="mt-4">
             {filters.view === "list" ? (
